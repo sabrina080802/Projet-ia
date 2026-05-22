@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual env
+venv/
+.env/
+
+# YOLO / Ultralytics
+runs/
+datasets/
+
+# Modèles
+*.pt
+*.onnx
+*.engine
+
+# macOS
+.DS_Store
+
+# VSCode
+.vscode/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+
+# Dataset images/labels (optionnel)
+hands.yolo26/train/images/
+hands.yolo26/train/labels/

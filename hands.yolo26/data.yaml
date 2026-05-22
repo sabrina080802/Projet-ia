@@ -1,0 +1,13 @@
+train: train/images
+val: train/images
+test: ../test/images
+
+nc: 6
+names: ['hand-0', 'hand-1', 'hand-2', 'hand-3', 'hand-4', 'hand-5']
+
+roboflow:
+  workspace: jules-jacquin
+  project: jules-jacquin
+  version: dataset
+  license: Private
+  url: https://app.roboflow.com/jules-jacquin/jules-jacquin/dataset
