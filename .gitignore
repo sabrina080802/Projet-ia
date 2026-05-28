@@ -31,3 +31,10 @@ datasets/
 # Dataset images/labels (optionnel)
 hands.yolo26/train/images/
 hands.yolo26/train/labels/
+
+.env
+*/node_modules
+website/node_modules/
+website/dist/
+website/.vite/
+website/.env
