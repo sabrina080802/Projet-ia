@@ -90,10 +90,12 @@ export function redrawOverlay() {
   state.detections.forEach((detection, index) => {
     if (!detection.box) return;
     const { x1, y1, x2, y2 } = detection.box;
-    const left = Math.min(x1, x2) * scaleX;
-    const top = Math.min(y1, y2) * scaleY;
     const width = Math.abs(x2 - x1) * scaleX;
     const height = Math.abs(y2 - y1) * scaleY;
+
+    // vidéo en miroir donc on inverse l'axe X /!\
+    const left = overlay.width - Math.min(x1, x2) * scaleX - width;
+    const top = Math.min(y1, y2) * scaleY;
 
     const color = ["#2563eb", "#0f766e", "#f97316", "#dc2626", "#8b5cf6"][
       index % 5

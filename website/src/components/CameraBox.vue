@@ -10,25 +10,27 @@ import {
 </script>
 
 <template>
-  <article class="card bg-base-100 shadow-xl border border-base-200">
-    <div class="card-body p-6">
-      <div class="flex items-center justify-between mb-4">
+  <article
+    class="card bg-base-100 shadow-sm border border-base-200 h-full flex flex-col"
+  >
+    <div class="card-body p-4 flex flex-col h-full gap-4">
+      <div class="flex items-center justify-between shrink-0">
         <div>
-          <h2 class="card-title text-xl">Flux Caméra</h2>
-          <p class="text-sm text-base-content/60">
+          <h2 class="card-title text-xl">Caméra</h2>
+          <p class="text-xs text-base-content/60">
             Analyse en temps réel à 3 FPS.
           </p>
         </div>
         <div class="flex gap-2">
           <button
-            class="btn btn-primary"
+            class="btn btn-sm btn-primary"
             @click="startCamera"
             :disabled="state.streamOn"
           >
             <Camera class="w-4 h-4" /> Allumer
           </button>
           <button
-            class="btn btn-outline btn-error"
+            class="btn btn-sm btn-outline btn-error"
             @click="stopCamera"
             :disabled="!state.streamOn"
           >
@@ -38,11 +40,11 @@ import {
       </div>
 
       <div
-        class="relative w-full aspect-video bg-black rounded-box overflow-hidden shadow-inner"
+        class="relative w-full flex-1 min-h-0 bg-black rounded-box overflow-hidden shadow-inner"
       >
         <video
           ref="videoRef"
-          class="absolute inset-0 h-full w-full object-cover"
+          class="absolute inset-0 h-full w-full object-cover -scale-x-100"
           autoplay
           playsinline
           muted
