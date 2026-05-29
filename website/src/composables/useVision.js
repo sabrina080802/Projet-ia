@@ -2,7 +2,7 @@ import { reactive, ref } from "vue";
 
 // Config API
 const DEFAULT_ENDPOINT = "";
-const CAPTURE_INTERVAL_MS = 300;
+const CAPTURE_INTERVAL_MS = 500; // délai entre chaque capture (en ms)
 const API_ENDPOINT = import.meta.env.VITE_ENDPOINT || DEFAULT_ENDPOINT;
 const API_KEY = import.meta.env.VITE_API_KEY || "";
 
@@ -145,7 +145,7 @@ async function sendFrame() {
     const formData = new FormData();
     formData.append("file", blob, `frame.jpg`);
 
-    const response = await fetch(`${API_ENDPOINT.replace(/\/$/, "")}/predict`, {
+    const response = await fetch(API_ENDPOINT.trim(), {
       method: "POST",
       headers: { "x-api-key": API_KEY.trim() },
       body: formData,
