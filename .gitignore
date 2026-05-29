@@ -28,13 +28,15 @@ datasets/
 # Logs
 *.log
 
-# Dataset images/labels (optionnel)
-hands.yolo26/train/images/
-hands.yolo26/train/labels/
-
+# Node.js
 .env
 */node_modules
 website/node_modules/
 website/dist/
 website/.vite/
 website/.env
+
+# Datasets
+python/*.ndjson
+python/dataset
+python/*.zip

@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - web
     paths:
       - 'website/**'
       - '.github/workflows/deploy-website.yml'
