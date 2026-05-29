@@ -8,8 +8,8 @@ import {
   watch,
 } from "vue";
 
-const DEFAULT_ENDPOINT = "";
-const CAPTURE_INTERVAL_MS = 900;
+const DEFAULT_ENDPOINT = ""; // laisser vide, on utilise le .env et les variables GitHub pour Pages
+const CAPTURE_INTERVAL_MS = 300; // environ 3-4 fps
 
 const API_ENDPOINT = import.meta.env.VITE_ENDPOINT || DEFAULT_ENDPOINT;
 const API_KEY = import.meta.env.VITE_API_KEY || "";
@@ -36,159 +36,44 @@ let captureTimer = null;
 let abortController = null;
 
 const hasVideo = computed(() => state.cameraReady);
-const detectionCount = computed(() => state.detections.length);
 const endpointLabel = computed(() => API_ENDPOINT);
 const apiKeyLabel = computed(() =>
-  API_KEY ? "Récupérer avec succès" : "Manquante",
+  API_KEY ? "Récupérée avec succès" : "Manquante",
 );
 const configReady = computed(() => Boolean(API_ENDPOINT && API_KEY));
 
-function formatConfidence(value) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return null;
-  }
-
-  return `${Math.round(value * 100)}%`;
-}
-
-function extractBox(item) {
-  const source =
-    item?.bbox ??
-    item?.box ??
-    item?.coordinates ??
-    item?.xyxy ??
-    item?.points ??
-    item?.position;
-
-  if (Array.isArray(source) && source.length >= 4) {
-    const [x1, y1, x2, y2] = source.map(Number);
-    return { x1, y1, x2, y2 };
-  }
-
-  if (source && typeof source === "object") {
-    if ("x1" in source && "y1" in source && "x2" in source && "y2" in source) {
-      return {
-        x1: Number(source.x1),
-        y1: Number(source.y1),
-        x2: Number(source.x2),
-        y2: Number(source.y2),
-      };
-    }
-
-    if ("x" in source && "y" in source && "w" in source && "h" in source) {
-      const x = Number(source.x);
-      const y = Number(source.y);
-      const w = Number(source.w);
-      const h = Number(source.h);
-      return { x1: x, y1: y, x2: x + w, y2: y + h };
-    }
-  }
-
-  return null;
-}
-
-function normalizeBox(box) {
-  if (!box) return null;
-
-  const values = [box.x1, box.y1, box.x2, box.y2].map(Number);
-  if (values.some((value) => Number.isNaN(value))) return null;
-
-  const [x1, y1, x2, y2] = values;
-  const maxValue = Math.max(x1, y1, x2, y2);
-  const looksNormalized = maxValue <= 1.5;
-
-  return {
-    x1: Math.min(x1, x2),
-    y1: Math.min(y1, y2),
-    x2: Math.max(x1, x2),
-    y2: Math.max(y1, y2),
-    normalized: looksNormalized,
-  };
-}
-
-function extractLabel(item, index) {
-  return String(
-    item?.className ??
-      item?.class_name ??
-      item?.label ??
-      item?.name ??
-      item?.class ??
-      item?.category ??
-      item?.fingerCount ??
-      index + 1,
-  );
-}
-
 function extractDetections(payload) {
-  if (!payload || typeof payload !== "object") return [];
+  const results = payload?.images?.[0]?.results || [];
+  if (!results.length) return [];
 
-  const visited = new Set();
-
-  function collectArrays(node, depth = 0) {
-    if (!node || depth > 3) return [];
-
-    if (Array.isArray(node)) {
-      return [node];
-    }
-
-    if (typeof node !== "object") {
-      return [];
-    }
-
-    if (visited.has(node)) {
-      return [];
-    }
-
-    visited.add(node);
-
-    return Object.values(node).flatMap((value) =>
-      collectArrays(value, depth + 1),
-    );
-  }
-
-  const groups = collectArrays(payload).filter((items) =>
-    items.some((item) => item && typeof item === "object"),
-  );
-
-  const source =
-    groups.find((items) =>
-      items.some(
-        (item) =>
-          item?.label ||
-          item?.name ||
-          item?.class ||
-          item?.confidence ||
-          item?.score ||
-          item?.bbox ||
-          item?.box,
-      ),
-    ) || groups[0];
-  if (!source) return [];
-
-  return source.map((item, index) => {
-    const box = normalizeBox(extractBox(item));
-    const label = extractLabel(item, index);
-    const confidence =
-      item?.confidence ??
-      item?.score ??
-      item?.probability ??
-      item?.conf ??
-      null;
-    const fingerValue = Number(
-      item?.fingerCount ??
-        item?.count ??
-        item?.value ??
-        item?.class ??
-        item?.label,
+  return results.map((item, index) => {
+    // Label (ex: "hand_5", "class_3", etc.)
+    const label = String(
+      item.name || item.class || item.label || `Objet ${index + 1}`,
     );
 
-    return {
-      label,
-      confidence,
-      confidenceText: formatConfidence(confidence),
-      box,
-      fingerValue: Number.isFinite(fingerValue) ? fingerValue : 1,
-    };
+    // Compteur des doigts
+    const match = label.match(/\d+/);
+    const fingerValue = match ? parseInt(match[0], 10) : 0;
+
+    // Niveau de confiance en %
+    const conf = item.confidence ?? item.score;
+    const confidenceText = conf ? `${Math.round(conf * 100)}%` : "";
+
+    // Bounding Box (me demander pas d'expliquer, c('est un calcul qui fonctionne)
+    let box = null;
+    const b = item.box || item.bbox || item;
+    if (b && typeof b === "object") {
+      if ("x1" in b && "y1" in b && "x2" in b && "y2" in b) {
+        box = { x1: b.x1, y1: b.y1, x2: b.x2, y2: b.y2 };
+      } else if ("x" in b && "y" in b && ("w" in b || "width" in b)) {
+        const w = b.w ?? b.width;
+        const h = b.h ?? b.height;
+        box = { x1: b.x, y1: b.y, x2: b.x + w, y2: b.y + h };
+      }
+    }
+
+    return { label, confidenceText, fingerValue, box };
   });
 }
 
@@ -206,7 +91,6 @@ function redrawOverlay() {
 
   const ctx = overlay.getContext("2d");
   if (!ctx) return;
-
   ctx.clearRect(0, 0, overlay.width, overlay.height);
 
   if (!state.detections.length || !video.videoWidth || !video.videoHeight)
@@ -222,135 +106,101 @@ function redrawOverlay() {
   state.detections.forEach((detection, index) => {
     if (!detection.box) return;
 
-    const { x1, y1, x2, y2, normalized } = detection.box;
-    const left = normalized
-      ? Math.min(x1, x2) * overlay.width
-      : Math.min(x1, x2) * scaleX;
-    const top = normalized
-      ? Math.min(y1, y2) * overlay.height
-      : Math.min(y1, y2) * scaleY;
-    const width = normalized
-      ? Math.abs(x2 - x1) * overlay.width
-      : Math.abs(x2 - x1) * scaleX;
-    const height = normalized
-      ? Math.abs(y2 - y1) * overlay.height
-      : Math.abs(y2 - y1) * scaleY;
+    const { x1, y1, x2, y2 } = detection.box;
+    const left = Math.min(x1, x2) * scaleX;
+    const top = Math.min(y1, y2) * scaleY;
+    const width = Math.abs(x2 - x1) * scaleX;
+    const height = Math.abs(y2 - y1) * scaleY;
 
+    // Couleur pour les boîtes
     const color = ["#2563eb", "#0f766e", "#f97316", "#dc2626", "#8b5cf6"][
       index % 5
     ];
 
+    // Dessin de la boîte
     ctx.strokeStyle = color;
-    ctx.fillStyle = color;
     ctx.strokeRect(left, top, width, height);
 
+    // Dessin du texte
     const label = `${detection.label}${detection.confidenceText ? ` ${detection.confidenceText}` : ""}`;
     const labelWidth = Math.max(64, ctx.measureText(label).width + 18);
-    const labelHeight = 28;
-    const labelY = Math.max(0, top - labelHeight);
-
-    ctx.fillRect(left, labelY, labelWidth, labelHeight);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillText(label, left + 8, labelY + 5);
     ctx.fillStyle = color;
+    ctx.fillRect(left, Math.max(0, top - 28), labelWidth, 28);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(label, left + 8, Math.max(0, top - 28) + 5);
   });
-}
-
-function computeFingerTotal(detections) {
-  return detections.reduce(
-    (total, detection) =>
-      total +
-      (Number.isFinite(detection.fingerValue) ? detection.fingerValue : 1),
-    0,
-  );
-}
-
-async function parsePredictionResponse(response) {
-  const rawText = await response.text();
-
-  try {
-    return JSON.parse(rawText);
-  } catch {
-    return rawText;
-  }
 }
 
 async function sendFrame() {
   const video = videoRef.value;
-  if (!video || !video.videoWidth || !video.videoHeight) return;
-  if (state.loading) return;
+  if (!video || !video.videoWidth || !video.videoHeight || state.loading)
+    return;
 
   if (!configReady.value) {
     state.error =
-      "Le fichier website/.env doit contenir VITE_ENDPOINT et VITE_API_KEY.";
+      "Le fichier .env doit contenir VITE_ENDPOINT et VITE_API_KEY.";
     return;
   }
 
   state.loading = true;
   state.error = "";
-  state.status = "Analyse de la frame en cours...";
 
-  if (abortController) {
-    abortController.abort();
-  }
+  if (abortController) abortController.abort();
   abortController = new AbortController();
 
   try {
-    captureCanvas.width = video.videoWidth;
-    captureCanvas.height = video.videoHeight;
-    const context = captureCanvas.getContext("2d");
-    if (!context) throw new Error("Impossible de préparer la capture.");
+    const MAX_WIDTH = 640; // ne pas dépasser 640px de large (optimisation du flux envoyé à l'API)
+    const scale = Math.min(1, MAX_WIDTH / video.videoWidth);
 
+    captureCanvas.width = video.videoWidth * scale;
+    captureCanvas.height = video.videoHeight * scale;
+    const context = captureCanvas.getContext("2d");
+
+    // redimensionnement pour l'API
     context.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
 
     const blob = await new Promise((resolve, reject) => {
+      // compression
       captureCanvas.toBlob(
-        (result) => {
-          if (!result) {
-            reject(new Error("Capture webcam impossible."));
-            return;
-          }
-          resolve(result);
-        },
+        (res) => (res ? resolve(res) : reject(new Error("Erreur de capture."))),
         "image/jpeg",
-        0.85,
+        0.6, // 60% -> évite d'envoyer images trop lourdes (j'ai une caméra 4k)
       );
     });
 
     const endpoint = API_ENDPOINT.trim().replace(/\/$/, "");
     const formData = new FormData();
-    formData.append("file", blob, `frame-${Date.now()}.jpg`);
+    formData.append("file", blob, `frame.jpg`);
 
     const response = await fetch(`${endpoint}/predict`, {
       method: "POST",
-      headers: {
-        "x-api-key": API_KEY.trim(),
-      },
+      headers: { "x-api-key": API_KEY.trim() },
       body: formData,
       signal: abortController.signal,
     });
 
-    const data = await parsePredictionResponse(response);
+    const rawText = await response.text();
+    const data = rawText.startsWith("{") ? JSON.parse(rawText) : rawText;
 
-    if (!response.ok) {
-      throw new Error(
-        typeof data === "string" ? data : JSON.stringify(data, null, 2),
-      );
-    }
+    if (!response.ok)
+      throw new Error(typeof data === "string" ? data : JSON.stringify(data));
 
     state.rawResult = data;
     state.detections = extractDetections(data);
-    state.totalFingers = computeFingerTotal(state.detections);
+    state.totalFingers = state.detections.reduce(
+      (sum, det) => sum + det.fingerValue,
+      0,
+    );
     state.responseText =
       typeof data === "string" ? data : JSON.stringify(data, null, 2);
     state.frameAt = new Date().toLocaleTimeString();
-    state.status = `Dernière analyse à ${state.frameAt}.`;
+    state.status = `Analyse réussie.`;
 
     redrawOverlay();
   } catch (error) {
     if (error.name !== "AbortError") {
       state.error = `Erreur: ${error.message}`;
-      state.status = "La requête a échoué.";
+      state.status = "Échec de l'analyse.";
     }
   } finally {
     state.loading = false;
@@ -367,85 +217,48 @@ function startLoop() {
 
 function stopLoop() {
   state.streamOn = false;
-  if (captureTimer) {
-    clearInterval(captureTimer);
-    captureTimer = null;
-  }
-  if (abortController) {
-    abortController.abort();
-    abortController = null;
-  }
+  if (captureTimer) clearInterval(captureTimer);
+  if (abortController) abortController.abort();
+  captureTimer = null;
+  abortController = null;
 }
 
 async function startCamera() {
   state.error = "";
-  state.cameraReady = false;
-
   if (!navigator.mediaDevices?.getUserMedia) {
-    state.error = "La caméra n’est pas supportée par ce navigateur.";
+    state.error = "Caméra non supportée.";
     return;
   }
-
   try {
     mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: "user",
-      },
-      audio: false,
+      video: { facingMode: "user" },
     });
-
     if (videoRef.value) {
       videoRef.value.srcObject = mediaStream;
       await videoRef.value.play();
     }
-
     state.cameraReady = true;
-    state.status = "Caméra prête.";
     startLoop();
-    redrawOverlay();
   } catch (error) {
-    state.error = `Impossible d’accéder à la webcam: ${error.message}`;
+    state.error = `Erreur webcam: ${error.message}`;
   }
 }
 
 function stopCamera() {
   stopLoop();
   state.cameraReady = false;
-  if (mediaStream) {
-    mediaStream.getTracks().forEach((track) => track.stop());
-    mediaStream = null;
-  }
-  if (videoRef.value) {
-    videoRef.value.srcObject = null;
-  }
-  const overlay = overlayRef.value;
-  const ctx = overlay?.getContext("2d");
-  if (ctx && overlay) {
-    ctx.clearRect(0, 0, overlay.width, overlay.height);
-  }
+  if (mediaStream) mediaStream.getTracks().forEach((t) => t.stop());
+  if (videoRef.value) videoRef.value.srcObject = null;
+  const ctx = overlayRef.value?.getContext("2d");
+  if (ctx) ctx.clearRect(0, 0, overlayRef.value.width, overlayRef.value.height);
   state.status = "Caméra arrêtée.";
-}
-
-function resetResult() {
-  state.error = "";
-  state.responseText = "Aucune prédiction pour l’instant.";
-  state.rawResult = null;
-  state.totalFingers = 0;
   state.detections = [];
-  state.frameAt = "";
-  redrawOverlay();
+  state.totalFingers = 0;
 }
 
-watch(
-  () => state.detections,
-  () => redrawOverlay(),
-  { deep: true },
-);
+watch(() => state.detections, redrawOverlay, { deep: true });
 
-onMounted(() => {
-  window.addEventListener("resize", redrawOverlay);
-});
-
+onMounted(() => window.addEventListener("resize", redrawOverlay));
 onBeforeUnmount(() => {
   stopCamera();
   window.removeEventListener("resize", redrawOverlay);
@@ -454,13 +267,13 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-amber-50 text-slate-900"
+    class="min-h-screen bg-linear-to-br from-slate-50 via-white to-amber-50 text-slate-900"
   >
     <main
       class="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8"
     >
       <header
-        class="grid gap-4 rounded-[2rem] border border-white/70 bg-white/80 p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)] backdrop-blur-xl md:grid-cols-[1.5fr_0.8fr] md:items-end"
+        class="grid gap-4 rounded-4xl border border-white/70 bg-white/80 p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)] backdrop-blur-xl md:grid-cols-[1.5fr_0.8fr] md:items-end"
       >
         <div>
           <h1 class="text-4xl font-bold tracking-tight sm:text-5xl">Hand AI</h1>
@@ -475,9 +288,10 @@ onBeforeUnmount(() => {
           <div class="flex items-center justify-between gap-4">
             <span class="text-sm text-slate-300">Statut</span>
             <span
-              class="rounded-full bg-ocean-500/15 px-3 py-1 text-xs font-semibold text-emerald-200"
-              >{{ state.streamOn ? "En direct" : "Arrêté" }}</span
+              class="rounded-full bg-blue-500/15 px-3 py-1 text-xs font-semibold text-emerald-200"
             >
+              {{ state.streamOn ? "En direct" : "Arrêté" }}
+            </span>
           </div>
           <div class="text-2xl font-bold tracking-tight">
             {{ state.totalFingers }} doigts
@@ -491,7 +305,7 @@ onBeforeUnmount(() => {
 
       <section class="grid flex-1 gap-6 lg:grid-cols-[1.35fr_0.85fr]">
         <article
-          class="rounded-[2rem] border border-white/70 bg-white/80 p-4 shadow-[0_24px_70px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-6"
+          class="rounded-4xl border border-white/70 bg-white/80 p-4 shadow-[0_24px_70px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:p-6"
         >
           <div class="mb-4 flex items-center justify-between gap-4">
             <div>
@@ -503,17 +317,17 @@ onBeforeUnmount(() => {
             <div class="flex gap-3">
               <button
                 type="button"
-                class="rounded-full bg-ocean-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-ocean-500/20 transition hover:bg-ocean-700"
+                class="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-700"
                 @click="startCamera"
               >
-                Allumer caméra
+                Allumer
               </button>
               <button
                 type="button"
                 class="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 @click="stopCamera"
               >
-                Éteindre caméra
+                Éteindre
               </button>
             </div>
           </div>
@@ -521,10 +335,12 @@ onBeforeUnmount(() => {
           <div
             class="relative overflow-hidden rounded-[1.75rem] border border-slate-200 bg-slate-950/5"
           >
-            <div class="relative aspect-[16/10] w-full bg-black">
+            <div
+              class="relative w-full aspect-video bg-black rounded-3xl overflow-hidden shadow-inner"
+            >
               <video
                 ref="videoRef"
-                class="h-full w-full object-cover"
+                class="absolute inset-0 h-full w-full object-cover"
                 autoplay
                 playsinline
                 muted
@@ -536,23 +352,19 @@ onBeforeUnmount(() => {
 
               <div
                 v-if="!hasVideo"
-                class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-950/20 to-slate-950/40 px-6 text-center text-sm leading-6 text-white"
+                class="absolute inset-0 flex items-center justify-center bg-slate-900/80 px-6 text-center text-sm font-medium text-white backdrop-blur-sm"
               >
-                Lancez la webcam
+                Lancez la webcam pour commencer la détection
               </div>
             </div>
           </div>
         </article>
 
-        <aside class="grid gap-6">
+        <aside class="grid gap-6 max-h-[calc(100vh-8rem)] overflow-y-auto pr-2">
           <article
-            class="rounded-[2rem] border border-white/70 bg-white/80 p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)] backdrop-blur-xl"
+            class="rounded-4xl border border-white/70 bg-white/80 p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)] backdrop-blur-xl"
           >
             <h2 class="text-lg font-bold">Configuration chargée</h2>
-            <p class="mt-1 text-sm text-slate-500">
-              Endpoint chargé depuis le .env du dossier website.
-            </p>
-
             <div class="mt-5 grid gap-4 text-sm">
               <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p
@@ -564,7 +376,6 @@ onBeforeUnmount(() => {
                   {{ endpointLabel }}
                 </p>
               </div>
-
               <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p
                   class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500"
@@ -573,15 +384,6 @@ onBeforeUnmount(() => {
                 </p>
                 <p class="mt-2 font-medium text-slate-900">{{ apiKeyLabel }}</p>
               </div>
-
-              <button
-                type="button"
-                class="w-full rounded-full bg-gradient-to-r from-ocean-600 to-ocean-700 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-ocean-500/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
-                @click="sendFrame"
-                :disabled="!state.streamOn || state.loading"
-              >
-                {{ state.loading ? "Analyse en cours..." : "Analyser" }}
-              </button>
 
               <p
                 v-if="state.error"
@@ -593,14 +395,9 @@ onBeforeUnmount(() => {
           </article>
 
           <article
-            class="rounded-[2rem] border border-white/70 bg-white/80 p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)] backdrop-blur-xl"
+            class="rounded-4xl border border-white/70 bg-white/80 p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)] backdrop-blur-xl"
           >
-            <h2 class="text-lg font-bold">Détections</h2>
-            <p class="mt-1 text-sm text-slate-500">
-              Les classes numériques sont additionnées pour obtenir le total de
-              doigts.
-            </p>
-
+            <h2 class="text-lg font-bold">Détections actuelles</h2>
             <div class="mt-5 grid gap-3">
               <div
                 v-for="(detection, index) in state.detections"
@@ -613,27 +410,21 @@ onBeforeUnmount(() => {
                       {{ detection.label }}
                     </p>
                     <p class="mt-1 text-xs text-slate-500">
-                      Box {{ index + 1 }}
+                      Doigts: {{ detection.fingerValue }}
                     </p>
                   </div>
                   <span
-                    class="rounded-full bg-ocean-500/10 px-3 py-1 text-xs font-semibold text-ocean-700"
-                    >{{ detection.confidenceText || "n/a" }}</span
+                    class="rounded-full bg-blue-500/10 px-3 py-1 text-xs font-semibold text-blue-700"
                   >
+                    {{ detection.confidenceText || "n/a" }}
+                  </span>
                 </div>
-                <p
-                  v-if="detection.box"
-                  class="mt-3 break-words text-xs leading-5 text-slate-600"
-                >
-                  Boîte: {{ JSON.stringify(detection.box) }}
-                </p>
               </div>
               <div
                 v-if="!state.detections.length"
-                class="rounded-2xl border border-dashed border-slate-300 bg-sand-50 px-4 py-5 text-sm leading-6 text-slate-500"
+                class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500"
               >
-                Lance la webcam puis clique sur “Analyser maintenant” pour
-                tester la chaîne API.
+                Aucune détection pour le moment.
               </div>
             </div>
           </article>
@@ -641,7 +432,7 @@ onBeforeUnmount(() => {
           <article
             class="rounded-4xl border border-white/70 bg-white/80 p-6 shadow-[0_24px_70px_rgba(15,23,42,0.08)] backdrop-blur-xl"
           >
-            <h2 class="text-lg font-bold">Réponse brute</h2>
+            <h2 class="text-lg font-bold">Réponse brute API</h2>
             <pre
               class="mt-4 max-h-72 overflow-auto rounded-3xl bg-slate-950 p-5 text-xs leading-6 text-slate-100"
               >{{ state.responseText }}</pre
@@ -649,10 +440,6 @@ onBeforeUnmount(() => {
           </article>
         </aside>
       </section>
-
-      <footer class="pb-2 text-center text-xs text-slate-500">
-        Hand AI Dashboard
-      </footer>
     </main>
   </div>
 </template>
