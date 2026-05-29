@@ -2,7 +2,7 @@ import { reactive, ref } from "vue";
 
 // Config API
 const DEFAULT_ENDPOINT = "";
-const CAPTURE_INTERVAL_MS = 500; // délai entre chaque capture (en ms)
+const CAPTURE_INTERVAL_MS = 300; // délai entre chaque capture (en ms) ->> Avec yolo26x le modèle est lourd
 const API_ENDPOINT = import.meta.env.VITE_ENDPOINT || DEFAULT_ENDPOINT;
 const API_KEY = import.meta.env.VITE_API_KEY || "";
 
@@ -80,8 +80,11 @@ export function redrawOverlay() {
   if (!state.detections.length || !video.videoWidth || !video.videoHeight)
     return;
 
-  const scaleX = overlay.width / video.videoWidth;
-  const scaleY = overlay.height / video.videoHeight;
+  const sentWidth = captureCanvas.width;
+  const sentHeight = captureCanvas.height;
+
+  const scaleX = overlay.width / sentWidth;
+  const scaleY = overlay.height / sentHeight;
 
   ctx.lineWidth = 4;
   ctx.font = "bold 16px Space Grotesk, system-ui, sans-serif";
@@ -93,8 +96,7 @@ export function redrawOverlay() {
     const width = Math.abs(x2 - x1) * scaleX;
     const height = Math.abs(y2 - y1) * scaleY;
 
-    // vidéo en miroir donc on inverse l'axe X /!\
-    const left = overlay.width - Math.min(x1, x2) * scaleX - width;
+    const left = overlay.width - Math.max(x1, x2) * scaleX;
     const top = Math.min(y1, y2) * scaleY;
 
     const color = ["#2563eb", "#0f766e", "#f97316", "#dc2626", "#8b5cf6"][
@@ -129,8 +131,13 @@ async function sendFrame() {
 
   try {
     const scale = Math.min(1, 640 / video.videoWidth);
-    captureCanvas.width = video.videoWidth * scale;
-    captureCanvas.height = video.videoHeight * scale;
+
+    const baseWidth = video.videoWidth * scale;
+    const baseHeight = video.videoHeight * scale;
+
+    captureCanvas.width = Math.round(baseWidth / 32) * 32;
+    captureCanvas.height = Math.round(baseHeight / 32) * 32;
+
     const context = captureCanvas.getContext("2d");
     context.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
 
@@ -202,10 +209,22 @@ export async function startCamera() {
     state.error = "Caméra non supportée.";
     return;
   }
+
   try {
     mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user" },
+      video: {
+        facingMode: "user",
+        // HD (720p)
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+
+        // Full HD (1080p), utilise plutôt ceci :
+        // width: { ideal: 1920 },
+        // height: { ideal: 1080 }
+      },
+      audio: false,
     });
+
     if (videoRef.value) {
       videoRef.value.srcObject = mediaStream;
       await videoRef.value.play();
