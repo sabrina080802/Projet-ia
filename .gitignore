@@ -40,3 +40,13 @@ website/.env
 python/*.ndjson
 python/dataset
 python/*.zip
+
+# Training package
+training/.secrets.toml
+training/data/
+training/.venv/
+training/*.egg-info/
+.pytest_cache/
+
+# Claude local instructions
+CLAUDE.local.md
