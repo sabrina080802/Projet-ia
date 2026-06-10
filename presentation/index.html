@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Projet SHARP — Soutenance</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/theme/black.css" id="theme">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/plugin/highlight/monokai.css">
+
+  <style>
+    :root {
+      --sharp-accent: #4ea1ff;
+      --sharp-accent-2: #34d399;
+      --sharp-warn: #fbbf24;
+      --sharp-bg: #14161c;
+      --sharp-card: #1d2029;
+    }
+    .reveal { font-family: "Inter", "Segoe UI", system-ui, sans-serif; }
+    .reveal .slides { text-align: left; }
+    .reveal section { background: transparent; }
+    .reveal h1, .reveal h2, .reveal h3 { letter-spacing: -0.02em; text-transform: none; }
+    .reveal h1 { font-size: 2.6em; }
+    .reveal h2 { color: var(--sharp-accent); font-size: 1.7em; margin-bottom: 0.4em; }
+    .reveal h3 { color: var(--sharp-accent-2); font-size: 1.05em; }
+    .reveal strong { color: var(--sharp-accent); }
+    .reveal a { color: var(--sharp-accent); }
+    .reveal em { color: var(--sharp-warn); font-style: normal; }
+
+    .reveal .title-slide { text-align: center; }
+    .reveal .title-slide .hand { font-size: 3.4em; line-height: 1; }
+    .reveal .subtitle { color: #c9d1d9; font-size: 1.1em; }
+    .reveal .meta { color: #8b949e; font-size: 0.62em; margin-top: 1.2em; }
+    .reveal .kbd { background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:2px 8px; font-family: ui-monospace, monospace; font-size:0.85em; }
+
+    .reveal .grid2 { display:grid; grid-template-columns:1fr 1fr; gap: 0.9em; }
+    .reveal .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap: 0.7em; }
+    .reveal .card {
+      background: var(--sharp-card); border:1px solid #2b2f3a; border-radius:12px;
+      padding: 0.7em 0.9em; font-size: 0.8em;
+    }
+    .reveal .card h3 { margin-top:0; }
+    .reveal .pill { display:inline-block; background:#0d1117; border:1px solid #30363d;
+      border-radius:999px; padding:3px 12px; font-size:0.62em; margin:3px 4px 3px 0; color:#c9d1d9; }
+    .reveal .stat { text-align:center; }
+    .reveal .stat .num { font-size:2.0em; font-weight:800; color:var(--sharp-accent); line-height:1; }
+    .reveal .stat .lbl { font-size:0.62em; color:#8b949e; margin-top:0.3em; }
+    .reveal .todo { color:#0d1117; background:var(--sharp-warn); border-radius:6px;
+      padding:1px 7px; font-weight:700; font-size:0.78em; }
+    .reveal ul { font-size: 0.86em; }
+    .reveal .small { font-size: 0.72em; color:#c9d1d9; }
+    .reveal .muted { color:#8b949e; }
+    .reveal pre { box-shadow:none; width:100%; font-size:0.62em; }
+    .reveal pre code { border-radius:10px; padding:0.8em 1em; max-height:none; }
+    .reveal .footerlabel { position:fixed; bottom:12px; left:18px; font-size:13px; color:#586069; }
+    .reveal .pipeline { display:flex; align-items:stretch; gap:6px; font-size:0.62em; }
+    .reveal .pipeline .step { flex:1; background:var(--sharp-card); border:1px solid #2b2f3a;
+      border-radius:10px; padding:0.6em 0.4em; text-align:center; }
+    .reveal .pipeline .step b { color:var(--sharp-accent); display:block; margin-bottom:3px; }
+    .reveal .pipeline .arrow { align-self:center; color:#586069; }
+    .reveal .lead { font-size:1.15em; color:#e6edf3; }
+    .reveal table { font-size:0.66em; }
+    .reveal table th { color:var(--sharp-accent-2); }
+    .reveal .demo-big { font-size:4.2em; text-align:center; }
+  </style>
+</head>
+<body>
+<div class="reveal">
+  <div class="slides">
+
+    <!-- 1. TITRE -->
+    <section data-background-gradient="linear-gradient(135deg, #0d1117 0%, #1a2333 100%)">
+      <div class="title-slide">
+        <h1>Projet SHARP</h1>
+        <p class="subtitle"><em>Smart Hand Automated Recognition Project</em></p>
+        <p class="small muted">Détection en temps réel du nombre de doigts levés — Computer Vision &amp; YOLO</p>
+        <p class="meta">
+          Université de Strasbourg — CNAM · Cours IA<br>
+          <span class="todo">[ÉQUIPE : Prénom Nom · Prénom Nom · Prénom Nom]</span><br>
+          Soutenance — <span class="todo">[DATE]</span>
+        </p>
+      </div>
+      <aside class="notes">
+        Se présenter (3 personnes), annoncer le plan en 1 phrase : objectif, pipeline de training,
+        application de serving dockerisée, puis démo live. Durée visée : ~10 min + démo.
+      </aside>
+    </section>
+
+    <!-- 2. SOMMAIRE -->
+    <section>
+      <h2>Sommaire</h2>
+      <div class="grid2">
+        <div>
+          <ol>
+            <li>Objectif &amp; contraintes du sujet</li>
+            <li>Architecture globale du projet</li>
+            <li>Pipeline de Training (Partie A)</li>
+            <li>Dataset &amp; annotation</li>
+          </ol>
+        </div>
+        <div>
+          <ol start="5">
+            <li>Data augmentation &amp; entraînement</li>
+            <li>Résultats &amp; métriques</li>
+            <li>Application de Serving (Partie B)</li>
+            <li>Qualité, CI &amp; démo live</li>
+          </ol>
+        </div>
+      </div>
+      <aside class="notes">Annoncer qu'on finit par une démo live avec plusieurs scénarios (1 main, 2 mains, combinaisons).</aside>
+    </section>
+
+    <!-- 3. OBJECTIF -->
+    <section>
+      <h2>Objectif</h2>
+      <p class="lead">Reconnaître automatiquement, en temps réel, le <strong>nombre de doigts levés</strong>
+      d'une ou plusieurs mains à partir d'un flux webcam.</p>
+      <p>6 classes fixées par le sujet, une <em>bounding box par main</em> :</p>
+      <p>
+        <span class="pill">0_doigt</span>
+        <span class="pill">1_doigt</span>
+        <span class="pill">2_doigts</span>
+        <span class="pill">3_doigts</span>
+        <span class="pill">4_doigts</span>
+        <span class="pill">5_doigts</span>
+      </p>
+      <p class="small muted">Si deux mains sont visibles, le dashboard affiche la <strong>somme</strong> des doigts de toutes les mains détectées.</p>
+      <aside class="notes">Insister : c'est de la détection d'objets (boxes + classe), pas de la classification d'image globale.</aside>
+    </section>
+
+    <!-- 4. CONTRAINTES -->
+    <section>
+      <h2>Contraintes respectées</h2>
+      <div class="grid2">
+        <div class="card">
+          <h3>Stack imposée</h3>
+          <ul>
+            <li>Python 3.12</li>
+            <li>Modèle <strong>YOLO26</strong> (Ultralytics)</li>
+            <li>Dataset &amp; annotation : <strong>Ultralytics Platform / HUB</strong></li>
+            <li>Code versionné sur GitHub</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Livrables</h3>
+          <ul>
+            <li>Pipeline ML (extraction → évaluation)</li>
+            <li>App de serving <strong>dockerisée</strong></li>
+            <li>Dashboard webcam temps réel</li>
+            <li><strong>≥ 10 FPS</strong> en live exigé</li>
+          </ul>
+        </div>
+      </div>
+      <p class="small muted">Bonnes pratiques de dev appliquées de bout en bout : séparation des responsabilités, qualité de code, CI.</p>
+      <aside class="notes">Rappeler que GPU NVIDIA / Apple M-series était requis pour l'entraînement.</aside>
+    </section>
+
+    <!-- 5. ARCHITECTURE GLOBALE -->
+    <section>
+      <h2>Architecture globale</h2>
+      <div class="grid2">
+        <div class="card">
+          <h3>A — Pipeline de Training</h3>
+          <p class="small">Package Python <span class="kbd">sharp</span> : extraction, validation, préparation,
+          training, évaluation. Pipeline <strong>locale</strong> + variante <strong>cloud</strong> (Ultralytics HUB).</p>
+        </div>
+        <div class="card">
+          <h3>B — Application de Serving</h3>
+          <p class="small">Backend <strong>FastAPI</strong> qui charge <span class="kbd">best.pt</span> au démarrage,
+          frontend <strong>Vue 3</strong> servi par <strong>nginx</strong>, le tout en <strong>Docker Compose</strong>.</p>
+        </div>
+      </div>
+      <div class="pipeline" style="margin-top:0.6em;">
+        <div class="step"><b>Dataset</b>Ultralytics HUB</div>
+        <div class="arrow">→</div>
+        <div class="step"><b>Training</b>YOLO26</div>
+        <div class="arrow">→</div>
+        <div class="step"><b>best.pt</b>poids entraînés</div>
+        <div class="arrow">→</div>
+        <div class="step"><b>Backend</b>FastAPI /predict</div>
+        <div class="arrow">→</div>
+        <div class="step"><b>Dashboard</b>webcam + compteur</div>
+      </div>
+      <aside class="notes">Montrer que le modèle entraîné en A est l'artefact consommé par B. Une seule source de vérité de classes partagée.</aside>
+    </section>
+
+    <!-- 6. PIPELINE TRAINING OVERVIEW -->
+    <section>
+      <h2>Partie A — Pipeline ML</h2>
+      <p class="small muted">5 étapes, responsabilités séparées (un module par brique) :</p>
+      <div class="pipeline">
+        <div class="step"><b>1. Extraction</b>SDK Ultralytics HUB · dataset id configurable</div>
+        <div class="arrow">→</div>
+        <div class="step"><b>2. Validation</b>images décodées · labels cohérents</div>
+        <div class="arrow">→</div>
+        <div class="step"><b>3. Préparation</b>split 60/20/20 · data.yaml</div>
+        <div class="arrow">→</div>
+        <div class="step"><b>4. Training</b>YOLO26 · augmentations</div>
+        <div class="arrow">→</div>
+        <div class="step"><b>5. Évaluation</b>model.val(test)</div>
+      </div>
+      <p class="small" style="margin-top:0.7em;">Configurable via <span class="kbd">settings.toml</span> (dynaconf),
+      variables <span class="kbd">SHARP_*</span> ou arguments CLI. Une commande :</p>
+      <pre><code class="language-bash">python run.py local all --dataset-id &lt;ID&gt;   # extraction → … → évaluation</code></pre>
+      <aside class="notes">Insister sur la séparation des responsabilités (critère d'éval) : chaque étape = un fichier dans sharp/local/.</aside>
+    </section>
+
+    <!-- 7. DATASET & ANNOTATION -->
+    <section>
+      <h2>Dataset &amp; annotation</h2>
+      <div class="grid3">
+        <div class="card stat"><div class="num"><span class="todo">[N]</span></div><div class="lbl">images collectées</div></div>
+        <div class="card stat"><div class="num"><span class="todo">[N]</span></div><div class="lbl">images annotées</div></div>
+        <div class="card stat"><div class="num"><span class="todo">[N]</span></div><div class="lbl">bounding boxes</div></div>
+      </div>
+      <p class="small" style="margin-top:0.7em;">Outil : <strong>Ultralytics Platform / HUB</strong> — annotation et gestion du dataset,
+      extraction via <span class="kbd">hub-sdk</span>.</p>
+      <div class="grid2">
+        <div class="card"><h3>✓ Apprécié</h3><p class="small"><span class="todo">[Ex : intégration directe HUB ↔ entraînement, export YOLO natif, splits gérables depuis l'UI…]</span></p></div>
+        <div class="card"><h3>✕ Plus difficile</h3><p class="small"><span class="todo">[Ex : annotation manuelle longue, variété d'éclairages/fonds à couvrir, équilibrage des classes…]</span></p></div>
+      </div>
+      <aside class="notes">
+        Remplir les chiffres réels. Mentionner ce qui était facile/difficile et ce qu'on a aimé/moins aimé
+        avec l'outil — explicitement demandé dans le sujet.
+      </aside>
+    </section>
+
+    <!-- 8. VALIDATION & SPLITS -->
+    <section>
+      <h2>Validation &amp; préparation</h2>
+      <div class="grid2">
+        <div class="card">
+          <h3>Validation</h3>
+          <ul>
+            <li>Images réellement <strong>décodées</strong> (détecte les fichiers tronqués)</li>
+            <li>Labels vérifiés : classe valide, pas de coordonnées négatives, valeurs dans <span class="kbd">[0,1]</span></li>
+            <li>Box entièrement dans l'image, aire non nulle</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Préparation des splits</h3>
+          <ul>
+            <li>Réutilise un split existant si présent dans l'export</li>
+            <li>Sinon split déterministe <strong>60 / 20 / 20</strong>, <strong>seed 42</strong></li>
+            <li><span class="kbd">data.yaml</span> généré dynamiquement pour Ultralytics</li>
+          </ul>
+        </div>
+      </div>
+      <div class="grid3" style="margin-top:0.5em;">
+        <div class="card stat"><div class="num">60%</div><div class="lbl">train · <span class="todo">[N]</span> img</div></div>
+        <div class="card stat"><div class="num">20%</div><div class="lbl">val · <span class="todo">[N]</span> img</div></div>
+        <div class="card stat"><div class="num">20%</div><div class="lbl">test · <span class="todo">[N]</span> img</div></div>
+      </div>
+      <aside class="notes">La seed 42 garantit la reproductibilité — point apprécié des correcteurs.</aside>
+    </section>
+
+    <!-- 9. DATA AUGMENTATION -->
+    <section>
+      <h2>Stratégie de data augmentation</h2>
+      <p class="small muted">Pensée pour la détection de mains : couleur pour peau &amp; lumière, géométrie légère pour l'inclinaison.</p>
+      <div class="grid2">
+        <div class="card">
+          <h3>Couleur (HSV)</h3>
+          <ul>
+            <li><span class="kbd">hsv_h = 0.015</span> · teinte</li>
+            <li><span class="kbd">hsv_s = 0.7</span> · saturation</li>
+            <li><span class="kbd">hsv_v = 0.4</span> · luminosité</li>
+          </ul>
+          <p class="small muted">→ robustesse aux teintes de peau et aux éclairages variés.</p>
+        </div>
+        <div class="card">
+          <h3>Géométrie</h3>
+          <ul>
+            <li><span class="kbd">degrees = 10</span> · rotation légère</li>
+            <li><span class="kbd">translate = 0.1</span> · <span class="kbd">scale = 0.5</span></li>
+            <li><span class="kbd">fliplr = 0.5</span> · miroir horizontal</li>
+            <li><span class="kbd">flipud = 0.0</span> · <em>désactivé</em></li>
+            <li><span class="kbd">mosaic = 1.0</span> · <span class="kbd">mixup = 0.0</span></li>
+          </ul>
+        </div>
+      </div>
+      <p class="small">Choix clé : <strong>flipud désactivé</strong> — une main à l'envers n'est pas réaliste ;
+      le <strong>miroir horizontal</strong> est sûr car il ne change pas le nombre de doigts.</p>
+      <aside class="notes">Ce sont les vraies valeurs de settings.toml [augment]. Expliquer le raisonnement métier derrière fliplr vs flipud — c'est ce qui valorise le choix.</aside>
+    </section>
+
+    <!-- 10. TRAINING -->
+    <section>
+      <h2>Entraînement</h2>
+      <div class="grid2">
+        <div class="card">
+          <h3>Configuration</h3>
+          <ul>
+            <li>Architecture : <strong>YOLO26</strong></li>
+            <li>Taille modèle : <span class="todo">[nano / small / medium]</span></li>
+            <li><span class="kbd">imgsz = 640</span></li>
+            <li><span class="kbd">epochs = 100</span> · <span class="kbd">patience = 20</span> (early stopping)</li>
+            <li><span class="kbd">batch = -1</span> (auto)</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Pourquoi ce choix</h3>
+          <ul>
+            <li>Cible <strong>≥ 10 FPS</strong> en live → modèle léger privilégié</li>
+            <li>Auto-détection du device (CUDA > MPS > CPU)</li>
+            <li>Métriques &amp; courbes conservées sous <span class="kbd">runs/</span></li>
+          </ul>
+        </div>
+      </div>
+      <p class="small muted">Hyper-paramètres et augmentations centralisés dans <span class="kbd">settings.toml</span> — entraînement reproductible.</p>
+      <aside class="notes">Préciser la variante exacte de YOLO26 entraînée et le temps d'entraînement / GPU utilisé.</aside>
+    </section>
+
+    <!-- 11. RÉSULTATS / MÉTRIQUES -->
+    <section>
+      <h2>Résultats &amp; métriques</h2>
+      <p class="small muted">Évaluation sur le <strong>jeu de test</strong> via <span class="kbd">model.val(split="test")</span>.</p>
+      <div class="grid3">
+        <div class="card stat"><div class="num"><span class="todo">[0.9x]</span></div><div class="lbl">mAP@50</div></div>
+        <div class="card stat"><div class="num"><span class="todo">[0.xx]</span></div><div class="lbl">mAP@50-95</div></div>
+        <div class="card stat"><div class="num"><span class="todo">[xx]</span></div><div class="lbl">FPS en live</div></div>
+      </div>
+      <div class="grid2" style="margin-top:0.5em;">
+        <div class="card stat"><div class="num"><span class="todo">[0.xx]</span></div><div class="lbl">Précision</div></div>
+        <div class="card stat"><div class="num"><span class="todo">[0.xx]</span></div><div class="lbl">Rappel</div></div>
+      </div>
+      <p class="small muted" style="margin-top:0.5em;">
+        💡 Insérer ici la <strong>matrice de confusion</strong> et les <strong>courbes de loss</strong> (Ultralytics, dossier <span class="kbd">runs/</span>).
+        <span class="todo">[CAPTURES À AJOUTER]</span>
+      </p>
+      <aside class="notes">Montrer les courbes Ultralytics. Commenter les classes les mieux/moins bien reconnues (souvent 4 vs 5 doigts confondus).</aside>
+    </section>
+
+    <!-- 12. SERVING ARCHI -->
+    <section>
+      <h2>Partie B — Serving dockerisé</h2>
+      <div class="pipeline">
+        <div class="step"><b>Navigateur</b>webcam → frame</div>
+        <div class="arrow">→</div>
+        <div class="step"><b>nginx</b>sert le SPA · proxy /predict</div>
+        <div class="arrow">→</div>
+        <div class="step"><b>FastAPI</b>charge best.pt · /predict</div>
+        <div class="arrow">→</div>
+        <div class="step"><b>Ultralytics</b>inférence YOLO26</div>
+      </div>
+      <div class="grid2" style="margin-top:0.7em;">
+        <div class="card">
+          <h3>Backend (FastAPI)</h3>
+          <ul>
+            <li>Modèle chargé <strong>au démarrage</strong></li>
+            <li><span class="kbd">GET /health</span> — liveness + état modèle</li>
+            <li><span class="kbd">POST /predict</span> — frame → détections JSON</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Frontend (Vue 3 + Vite)</h3>
+          <ul>
+            <li>SPA buildée, servie par <strong>nginx</strong></li>
+            <li>Overlay des <strong>bounding boxes</strong> + classes</li>
+            <li>Compteur = <strong>somme des doigts</strong></li>
+          </ul>
+        </div>
+      </div>
+      <pre><code class="language-bash">docker compose up --build   # → dashboard sur http://localhost:8080</code></pre>
+      <aside class="notes">Expliquer pourquoi 2 conteneurs : séparation backend/frontend, nginx fait office de proxy et reverse-proxy /predict.</aside>
+    </section>
+
+    <!-- 13. DASHBOARD -->
+    <section>
+      <h2>Le dashboard</h2>
+      <div class="grid2">
+        <div class="card">
+          <h3>Ce qu'on voit</h3>
+          <ul>
+            <li>Flux webcam temps réel</li>
+            <li>Boîtes englobantes + classe par main</li>
+            <li>Compteur géant = total des doigts à l'écran</li>
+            <li>FPS live affiché</li>
+          </ul>
+        </div>
+        <div class="card" style="text-align:center;">
+          <p class="small muted">Compteur</p>
+          <div class="demo-big" style="color:var(--sharp-warn);">10</div>
+          <p class="small muted">🖐️ (5) + 🖐️ (5)</p>
+        </div>
+      </div>
+      <p class="small muted">Boucle de capture <strong>auto-régulée</strong> pour rester fluide et tenir la cible de FPS.
+      <span class="todo">[INSÉRER UNE CAPTURE D'ÉCRAN DU DASHBOARD]</span></p>
+      <aside class="notes">Idéalement remplacer la carte de droite par une vraie capture d'écran du dashboard avec 2 mains.</aside>
+    </section>
+
+    <!-- 14. SÉCURITÉ & CHOIX -->
+    <section>
+      <h2>Sécurité &amp; choix techniques</h2>
+      <div class="grid2">
+        <div class="card">
+          <h3>Pas de clé côté navigateur</h3>
+          <p class="small">Le dashboard local appelle <span class="kbd">/predict</span> via le <strong>proxy nginx</strong> :
+          la clé API ne transite jamais par le bundle public.</p>
+        </div>
+        <div class="card">
+          <h3>Configuration par variables d'env</h3>
+          <p class="small"><span class="kbd">SHARP_MODEL_PATH</span>, <span class="kbd">SHARP_API_KEY</span>,
+          <span class="kbd">SHARP_CONF</span>, <span class="kbd">SHARP_IOU</span>, <span class="kbd">SHARP_IMGSZ</span> —
+          aucun secret committé.</p>
+        </div>
+      </div>
+      <p class="small muted">⚠️ Avec Vite, toute valeur <span class="kbd">VITE_*</span> est inlinée dans le bundle public →
+      la démo statique GitHub Pages n'utilise qu'une <strong>clé dédiée et régénérable</strong>.</p>
+      <aside class="notes">Bon point à valoriser : on a réfléchi à la surface d'exposition de la clé selon le mode de déploiement.</aside>
+    </section>
+
+    <!-- 15. QUALITÉ & CI -->
+    <section>
+      <h2>Qualité du code &amp; CI</h2>
+      <div class="grid2">
+        <div class="card">
+          <h3>Qualité (critères d'éval)</h3>
+          <ul>
+            <li>Type hints + docstrings (style Google)</li>
+            <li><span class="kbd">ruff</span> (lint) + <span class="kbd">black</span> (format)</li>
+            <li><span class="kbd">.pre-commit-config.yaml</span></li>
+            <li>Code réparti en modules à responsabilité unique</li>
+            <li>Tests <span class="kbd">pytest</span> (classes, validation, préparation)</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>CI — bonus (+1 pt)</h3>
+          <ul>
+            <li>GitHub Actions sur <strong>chaque Pull Request</strong></li>
+            <li>lint + format + tests unitaires</li>
+            <li>Backend de serving également linté</li>
+          </ul>
+          <p class="small muted">Commits <strong>Conventional Commits</strong>, branches typées.</p>
+        </div>
+      </div>
+      <aside class="notes">La CI répond explicitement au bonus du sujet. Montrer un run vert sur GitHub si possible.</aside>
+    </section>
+
+    <!-- 16. USAGE LLM -->
+    <section>
+      <h2>Usage des LLM</h2>
+      <p class="small muted">Le sujet encourage l'usage des LLM pour la partie web — en documentant les choix et les apprentissages.</p>
+      <div class="grid2">
+        <div class="card">
+          <h3>Comment on s'en est servi</h3>
+          <ul>
+            <li>Bootstrap du frontend Vue + config nginx/Docker</li>
+            <li>Revue de sécurité (exposition de la clé Vite)</li>
+            <li><span class="todo">[autres usages réels…]</span></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Ce qu'on en retient</h3>
+          <ul>
+            <li>Garder une codebase <strong>saine &amp; minimale</strong> — ne pas sur-architecturer</li>
+            <li>Toujours <strong>challenger</strong> les réponses face au sujet</li>
+            <li><span class="todo">[apprentissages concrets de l'équipe]</span></li>
+          </ul>
+        </div>
+      </div>
+      <aside class="notes">Honnêteté = points. Dire ce qu'on a accepté, ce qu'on a rejeté/corrigé des suggestions IA.</aside>
+    </section>
+
+    <!-- 17. DÉMO -->
+    <section data-background-gradient="linear-gradient(135deg, #0d1117 0%, #16302b 100%)">
+      <div style="text-align:center;">
+        <div class="demo-big">🖐️</div>
+        <h2 style="color:var(--sharp-accent-2);">Démo live</h2>
+        <p class="lead">Scénarios : 1 main · 2 mains · différentes combinaisons de doigts</p>
+        <p class="small muted">Objectif : montrer la robustesse et le compteur en temps réel (≥ 10 FPS).</p>
+      </div>
+      <aside class="notes">
+        Préparer la démo : éclairage correct, fond neutre, tester webcam avant. Faire 0→5 d'une main,
+        puis deux mains pour montrer la somme. Avoir un plan B (vidéo enregistrée) en cas de souci matériel.
+      </aside>
+    </section>
+
+    <!-- 18. BILAN -->
+    <section>
+      <h2>Bilan</h2>
+      <div class="grid2">
+        <div class="card">
+          <h3>Réussites</h3>
+          <ul>
+            <li>Pipeline ML reproductible de bout en bout</li>
+            <li>Serving dockerisé propre + dashboard temps réel</li>
+            <li>CI verte, code typé &amp; testé</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Difficultés &amp; pistes</h3>
+          <ul>
+            <li><span class="todo">[ex : équilibrage des classes, confusion 4/5 doigts]</span></li>
+            <li><span class="todo">[ex : conditions d'éclairage, mains partiellement hors champ]</span></li>
+            <li>Pistes : plus de données, modèle plus grand si FPS le permet</li>
+          </ul>
+        </div>
+      </div>
+      <aside class="notes">Rester concret et honnête sur les limites — montre du recul.</aside>
+    </section>
+
+    <!-- 19. MERCI -->
+    <section data-background-gradient="linear-gradient(135deg, #0d1117 0%, #1a2333 100%)">
+      <div class="title-slide">
+        <div class="hand">🙌</div>
+        <h1>Merci</h1>
+        <p class="subtitle">Questions ?</p>
+        <p class="meta">
+          Projet SHARP · <span class="todo">[lien dépôt GitHub]</span><br>
+          <span class="todo">[ÉQUIPE]</span>
+        </p>
+      </div>
+      <aside class="notes">Avoir le dépôt GitHub ouvert pour répondre aux questions sur le code.</aside>
+    </section>
+
+  </div>
+</div>
+
+<div class="footerlabel">Projet SHARP — CNAM / Unistra</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/plugin/notes/notes.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/plugin/highlight/highlight.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'slide',
+    backgroundTransition: 'fade',
+    plugins: [ RevealNotes, RevealHighlight ],
+  });
+</script>
+</body>
+</html>
