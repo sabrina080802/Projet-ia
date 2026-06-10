@@ -1,8 +1,11 @@
 import { reactive, ref } from "vue";
 
 // Config API
-const DEFAULT_ENDPOINT = "";
-const CAPTURE_INTERVAL_MS = 500; // délai entre chaque capture (en ms)
+// Default points at the local backend, proxied by nginx (see website/nginx.conf).
+const DEFAULT_ENDPOINT = "/predict";
+// Délai entre une réponse et la capture suivante. 0 = aussi vite que le backend
+// le permet (le débit réel est borné par la latence d'inférence, pas par ce délai).
+const CAPTURE_INTERVAL_MS = 0;
 const API_ENDPOINT = import.meta.env.VITE_ENDPOINT || DEFAULT_ENDPOINT;
 const API_KEY = import.meta.env.VITE_API_KEY || "";
 
@@ -18,11 +21,14 @@ export const state = reactive({
   frameAt: "",
   totalFingers: 0,
   detections: [],
+  fps: 0,
 });
 
-export const configReady = Boolean(API_ENDPOINT && API_KEY);
+// The API key is optional: the dockerized backend is reachable via the nginx
+// proxy without one. It is only sent when explicitly configured.
+export const configReady = Boolean(API_ENDPOINT);
 export const endpointLabel = API_ENDPOINT;
-export const apiKeyLabel = API_KEY ? "Récupérée avec succès" : "Manquante";
+export const apiKeyLabel = API_KEY ? "Configurée" : "Non requise (proxy local)";
 
 // Ref Vue caméra
 export const videoRef = ref(null);
@@ -32,6 +38,8 @@ const captureCanvas = document.createElement("canvas");
 let mediaStream = null;
 let captureTimer = null;
 let abortController = null;
+let loopActive = false;
+let lastFrameTime = 0;
 
 // --- FONCTIONS ---
 function extractDetections(payload) {
@@ -80,8 +88,11 @@ export function redrawOverlay() {
   if (!state.detections.length || !video.videoWidth || !video.videoHeight)
     return;
 
-  const scaleX = overlay.width / video.videoWidth;
-  const scaleY = overlay.height / video.videoHeight;
+  const sentWidth = captureCanvas.width;
+  const sentHeight = captureCanvas.height;
+
+  const scaleX = overlay.width / sentWidth;
+  const scaleY = overlay.height / sentHeight;
 
   ctx.lineWidth = 4;
   ctx.font = "bold 16px Space Grotesk, system-ui, sans-serif";
@@ -93,8 +104,7 @@ export function redrawOverlay() {
     const width = Math.abs(x2 - x1) * scaleX;
     const height = Math.abs(y2 - y1) * scaleY;
 
-    // vidéo en miroir donc on inverse l'axe X /!\
-    const left = overlay.width - Math.min(x1, x2) * scaleX - width;
+    const left = overlay.width - Math.max(x1, x2) * scaleX;
     const top = Math.min(y1, y2) * scaleY;
 
     const color = ["#2563eb", "#0f766e", "#f97316", "#dc2626", "#8b5cf6"][
@@ -117,8 +127,7 @@ async function sendFrame() {
   if (!video || !video.videoWidth || !video.videoHeight || state.loading)
     return;
   if (!configReady) {
-    state.error =
-      "Le fichier .env doit contenir VITE_ENDPOINT et VITE_API_KEY.";
+    state.error = "Aucun endpoint d'inférence configuré (VITE_ENDPOINT).";
     return;
   }
 
@@ -129,8 +138,13 @@ async function sendFrame() {
 
   try {
     const scale = Math.min(1, 640 / video.videoWidth);
-    captureCanvas.width = video.videoWidth * scale;
-    captureCanvas.height = video.videoHeight * scale;
+
+    const baseWidth = video.videoWidth * scale;
+    const baseHeight = video.videoHeight * scale;
+
+    captureCanvas.width = Math.round(baseWidth / 32) * 32;
+    captureCanvas.height = Math.round(baseHeight / 32) * 32;
+
     const context = captureCanvas.getContext("2d");
     context.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
 
@@ -147,7 +161,7 @@ async function sendFrame() {
 
     const response = await fetch(API_ENDPOINT.trim(), {
       method: "POST",
-      headers: { "x-api-key": API_KEY.trim() },
+      headers: API_KEY ? { "x-api-key": API_KEY.trim() } : {},
       body: formData,
       signal: abortController.signal,
     });
@@ -169,6 +183,14 @@ async function sendFrame() {
     state.frameAt = new Date().toLocaleTimeString();
     state.status = `Analyse réussie.`;
 
+    // Live FPS = cadence réelle entre deux frames traitées (lissée).
+    const now = performance.now();
+    if (lastFrameTime) {
+      const instantFps = 1000 / (now - lastFrameTime);
+      state.fps = state.fps ? state.fps * 0.8 + instantFps * 0.2 : instantFps;
+    }
+    lastFrameTime = now;
+
     redrawOverlay();
   } catch (error) {
     if (error.name !== "AbortError") {
@@ -180,20 +202,29 @@ async function sendFrame() {
   }
 }
 
+async function captureLoop() {
+  if (!loopActive) return;
+  await sendFrame();
+  if (loopActive) captureTimer = setTimeout(captureLoop, CAPTURE_INTERVAL_MS);
+}
+
 export function startLoop() {
   stopLoop();
   state.streamOn = true;
   state.status = "Caméra active.";
-  captureTimer = setInterval(sendFrame, CAPTURE_INTERVAL_MS);
-  sendFrame();
+  loopActive = true;
+  lastFrameTime = 0;
+  captureLoop();
 }
 
 export function stopLoop() {
   state.streamOn = false;
-  if (captureTimer) clearInterval(captureTimer);
+  loopActive = false;
+  if (captureTimer) clearTimeout(captureTimer);
   if (abortController) abortController.abort();
   captureTimer = null;
   abortController = null;
+  state.fps = 0;
 }
 
 export async function startCamera() {
@@ -202,10 +233,22 @@ export async function startCamera() {
     state.error = "Caméra non supportée.";
     return;
   }
+
   try {
     mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user" },
+      video: {
+        facingMode: "user",
+        // HD (720p)
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+
+        // Full HD (1080p), utilise plutôt ceci :
+        // width: { ideal: 1920 },
+        // height: { ideal: 1080 }
+      },
+      audio: false,
     });
+
     if (videoRef.value) {
       videoRef.value.srcObject = mediaStream;
       await videoRef.value.play();

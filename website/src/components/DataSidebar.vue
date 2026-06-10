@@ -42,6 +42,12 @@ import { state, endpointLabel, apiKeyLabel } from "../composables/useVision";
             <span class="text-xs font-bold opacity-60">Clé API</span>
             <span class="text-xs">{{ apiKeyLabel }}</span>
           </div>
+          <div
+            class="bg-base-200 rounded-lg p-2.5 flex justify-between items-center"
+          >
+            <span class="text-xs font-bold opacity-60">FPS (live)</span>
+            <span class="text-xs font-mono">{{ state.fps.toFixed(1) }}</span>
+          </div>
         </div>
       </div>
     </div>

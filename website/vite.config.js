@@ -4,5 +4,6 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
-  base: "/Projet-ia/",
+  // "/" for the dockerized/nginx deploy; set VITE_BASE=/Projet-ia/ for GitHub Pages.
+  base: process.env.VITE_BASE ?? "/",
 });
