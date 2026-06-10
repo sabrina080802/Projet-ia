@@ -21,9 +21,9 @@ affiche la **somme** des doigts de toutes les mains détectées.
 ## Structure du dépôt
 
 ```
-training/            Pipeline ML (package Python `sharp`, local + cloud HUB)
+training/            Pipeline ML (package Python `sharp`, local + cloud Platform)
   sharp/local/       extraction → validation → préparation → training → évaluation
-  sharp/cloud/       pipeline Ultralytics HUB (cloud)
+  sharp/cloud/       pipeline Ultralytics Platform (cloud)
   scripts/           outil optionnel de conversion Labelbox NDJSON → YOLO
   tests/             tests unitaires (pytest)
 serving/backend/     API FastAPI qui charge best.pt et expose /predict
@@ -41,23 +41,25 @@ Détails complets dans [`training/README.md`](training/README.md). En résumé :
 cd training
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
-cp .secrets.toml.example .secrets.toml   # y mettre la clé Ultralytics HUB
+cp .secrets.toml.example .secrets.toml   # y mettre la clé Ultralytics Platform (ul_…)
 ```
 
 Configuration via [`settings.toml`](training/settings.toml) (dynaconf) ou variables
-d'environnement `SHARP_*`, ou en argument CLI (`--dataset-id`, …).
+d'environnement `SHARP_*`, ou en argument CLI (`--dataset`, …).
 
 ```bash
 # Pipeline locale complète : extraction → validation → préparation → train → éval
-python run.py local all --dataset-id <ID>
+python run.py local --dataset <slug_ou_ul://_URI>
 
-# Pipeline cloud (Ultralytics HUB)
-python run.py cloud all --dataset-id <ID>
+# Pipeline cloud (Ultralytics Platform) : entraînement local+streaming puis download
+python run.py cloud train
+python run.py cloud download --model-id <MODEL_ID> --dest runs/cloud/best.pt
 ```
 
 Points clés :
 
-- **Extraction** : SDK Ultralytics HUB (`hub-sdk`), id de dataset configurable.
+- **Extraction** : dataset Ultralytics Platform résolu via son URI `ul://` (slug
+  configurable), ou un dossier local déjà présent.
 - **Validation** : images réellement décodées (détecte les fichiers tronqués) ;
   labels vérifiés (classe valide, pas de coordonnées négatives, valeurs `[0,1]`,
   box entièrement dans l'image, pas de box d'aire nulle).
@@ -74,7 +76,9 @@ Points clés :
 ### Lancer la stack
 
 1. Placer les poids entraînés dans `serving/models/best.pt`
-   (ou définir `SHARP_MODEL_URL` pour les télécharger depuis Ultralytics HUB).
+   (ou définir `SHARP_MODEL_URL` sur un URI `ul://` Platform, avec `SHARP_API_KEY`,
+   pour les télécharger au démarrage ; les URLs HUB legacy marchent jusqu'à fin
+   juillet 2026).
 2. Démarrer :
 
    ```bash
@@ -102,7 +106,7 @@ somme des doigts détectés.
 | Variable           | Défaut             | Rôle |
 |--------------------|--------------------|------|
 | `SHARP_MODEL_PATH` | `/models/best.pt`  | poids montés dans le conteneur |
-| `SHARP_MODEL_URL`  | *(vide)*           | URL HUB pour télécharger le modèle si absent |
+| `SHARP_MODEL_URL`  | *(vide)*           | URI `ul://` Platform (ou URL HUB legacy) pour télécharger le modèle si absent |
 | `SHARP_API_KEY`    | *(vide)*           | si défini, exigé en en-tête `x-api-key` |
 | `SHARP_CONF`       | `0.25`             | seuil de confiance |
 | `SHARP_IOU`        | `0.45`            | seuil NMS IoU |
@@ -116,7 +120,7 @@ somme des doigts détectés.
 ### Démo statique GitHub Pages (optionnelle)
 
 En plus du serving dockerisé, le frontend peut être déployé en site statique. Il
-appelle alors directement un endpoint d'inférence distant (Ultralytics HUB), donc
+appelle alors directement un endpoint d'inférence distant (Ultralytics Platform), donc
 la clé est **inévitablement exposée** dans le bundle public — à n'utiliser qu'avec
 une clé dédiée et régénérable.
 

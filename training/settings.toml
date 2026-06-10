@@ -3,17 +3,28 @@
 # Any value can be overridden by an environment variable prefixed with SHARP_,
 # e.g. SHARP_TRAIN__EPOCHS=50 or SHARP_ULTRALYTICS__DATASET_ID=abc123.
 
+# Ultralytics Platform (platform.ultralytics.com). The legacy HUB is wound down
+# end of July 2026. The ul:// references below are built from these slugs:
+#   dataset -> ul://<username>/datasets/<dataset>
+#   model   -> ul://<username>/<project>/<model>
+# Find the exact slugs on your dataset/model pages in the Platform UI.
 [ultralytics]
-# Ultralytics HUB dataset id (source of truth for both pipelines).
-dataset_id = "YOUR_DATASET_ID"
-# HUB project id the cloud pipeline creates models under (optional, auto-created if empty).
+# Platform account handle: the <username> segment of every ul:// URI.
+username = "your-username"
+# Dataset slug, source of truth for both pipelines.
+dataset = "your-dataset"
+# Project slug that holds the trained models (created by `cloud setup`).
+project = "your-project"
+# Model slug created under the project (created by `cloud setup`).
+model = "your-model"
+# Base architecture trained on the Platform; matches the local pipeline's model.
+base_model = "yolo11n.pt"
+# Default GPU for REST cloud-GPU training (yolo26 GPUs: rtx-pro-6000, rtx-4090,
+# a100-80gb-sxm, h100-sxm, ...); ignored by local + streaming training.
+gpu_type = "rtx-pro-6000"
+# REST ids, filled in after `cloud setup` creates the project/model (or set manually).
 project_id = ""
-# HUB model id, filled in after the cloud pipeline creates a model (or set manually).
 model_id = ""
-# Hosted inference API. The legacy shared endpoint is https://predict.ultralytics.com;
-# a dedicated deployment exposes its own .../predict URL instead.
-inference_endpoint = "https://predict.ultralytics.com"
-inference_model_url = "https://hub.ultralytics.com/models/YOUR_MODEL_ID"
 
 [data]
 # Working directories for the LOCAL pipeline.

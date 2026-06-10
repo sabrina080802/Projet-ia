@@ -1,1 +1,1 @@
-"""SHARP training package: local and Ultralytics HUB cloud pipelines."""
+"""SHARP training package: local and Ultralytics Platform cloud pipelines."""

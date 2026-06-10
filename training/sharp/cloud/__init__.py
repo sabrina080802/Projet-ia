@@ -1,1 +1,1 @@
-"""Cloud pipeline: dataset upload, HUB cloud training, and hosted inference."""
+"""Cloud pipeline: Ultralytics Platform training and hosted inference."""

@@ -8,7 +8,7 @@ values::
     from config import settings
 
     print(settings.train.epochs)
-    print(settings.ultralytics.dataset_id)
+    print(settings.ultralytics.dataset)
 """
 
 from __future__ import annotations
