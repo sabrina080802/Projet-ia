@@ -1,0 +1,60 @@
+# Non-secret configuration for the SHARP training pipelines.
+# Loaded by config.py via dynaconf. Secrets (API keys) live in .secrets.toml.
+# Any value can be overridden by an environment variable prefixed with SHARP_,
+# e.g. SHARP_TRAIN__EPOCHS=50 or SHARP_ULTRALYTICS__DATASET_ID=abc123.
+
+[ultralytics]
+# Ultralytics HUB dataset id (source of truth for both pipelines).
+dataset_id = "YOUR_DATASET_ID"
+# HUB project id the cloud pipeline creates models under (optional, auto-created if empty).
+project_id = ""
+# HUB model id, filled in after the cloud pipeline creates a model (or set manually).
+model_id = ""
+# Hosted inference API. The legacy shared endpoint is https://predict.ultralytics.com;
+# a dedicated deployment exposes its own .../predict URL instead.
+inference_endpoint = "https://predict.ultralytics.com"
+inference_model_url = "https://hub.ultralytics.com/models/YOUR_MODEL_ID"
+
+[data]
+# Working directories for the LOCAL pipeline.
+root = "data"            # everything below lives under training/data/
+raw_dir = "data/raw"     # dataset as downloaded from the SDK
+yolo_dir = "data/yolo"   # prepared YOLO-format dataset (images/ + labels/ + data.yaml)
+seed = 42
+train_ratio = 0.6
+val_ratio = 0.2
+test_ratio = 0.2
+# Canonical classes, fixed by the project statement and shared by both pipelines.
+class_names = ["0_doigt", "1_doigt", "2_doigts", "3_doigts", "4_doigts", "5_doigts"]
+
+[train]
+# YOLO11 nano keeps inference >= 10 FPS on modest hardware; bump to s/m if accuracy is low.
+model = "yolo11n.pt"
+epochs = 100
+imgsz = 640
+batch = -1               # -1 lets Ultralytics auto-pick the batch size.
+patience = 20
+device = ""              # "" -> auto-detect (cuda > mps > cpu).
+project = "runs"
+name = "sharp"
+
+[augment]
+# Data augmentation, tuned for hand/finger detection. Color jitter handles skin
+# tones and lighting; small geometric jitter handles tilt/position; fliplr is
+# safe because mirroring a hand does not change its finger count, whereas flipud
+# is disabled (upside-down hands are unrealistic for this task).
+hsv_h = 0.015
+hsv_s = 0.7
+hsv_v = 0.4
+degrees = 10.0
+translate = 0.1
+scale = 0.5
+fliplr = 0.5
+flipud = 0.0
+mosaic = 1.0
+mixup = 0.0
+
+[infer]
+conf = 0.25
+iou = 0.45
+imgsz = 640

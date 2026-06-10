@@ -1,0 +1,29 @@
+# SHARP serving stack: YOLO inference backend + dashboard frontend.
+#
+# Usage:
+#   1. Put the trained weights at ./serving/models/best.pt
+#      (or set SHARP_MODEL_URL to download from Ultralytics HUB).
+#   2. docker compose up --build
+#   3. Open http://localhost:8080
+services:
+  backend:
+    build: ./serving/backend
+    environment:
+      SHARP_MODEL_PATH: /models/best.pt
+      SHARP_MODEL_URL: ${SHARP_MODEL_URL:-}
+      SHARP_API_KEY: ${SHARP_API_KEY:-}
+      SHARP_CONF: ${SHARP_CONF:-0.25}
+      SHARP_IOU: ${SHARP_IOU:-0.45}
+      SHARP_IMGSZ: ${SHARP_IMGSZ:-640}
+    volumes:
+      - ./serving/models:/models:ro
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./website
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
