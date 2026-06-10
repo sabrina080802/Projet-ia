@@ -1,9 +1,9 @@
 """Stage 3 - Preparation.
 
 Assemble the validated images and labels into the YOLO directory layout,
-generate deterministic train/val/test splits (60/20/20, seed 42), and write the
-``data.yaml`` consumed by ``model.train(data=...)``. Existing splits in the raw
-dataset are reused when present; otherwise they are generated.
+write the ``data.yaml`` consumed by ``model.train(data=...)``. A split already
+encoded in the raw dataset directories (train/val/test) is reused as-is;
+otherwise a deterministic train/val/test split is generated (60/20/20, seed 42).
 """
 
 from __future__ import annotations
@@ -22,6 +22,16 @@ from sharp.logging_utils import get_logger
 logger = get_logger(__name__)
 
 SPLITS = ("train", "val", "test")
+# Directory aliases that map onto our canonical split names.
+SPLIT_ALIASES = {
+    "train": "train",
+    "training": "train",
+    "val": "val",
+    "valid": "val",
+    "validation": "val",
+    "test": "test",
+    "testing": "test",
+}
 
 
 def _collect_pairs(raw_dir: Path) -> list[tuple[Path, Path]]:
@@ -34,6 +44,30 @@ def _collect_pairs(raw_dir: Path) -> list[tuple[Path, Path]]:
         if label.exists():
             pairs.append((image, label))
     return pairs
+
+
+def _existing_split(
+    pairs: list[tuple[Path, Path]],
+) -> dict[str, list[tuple[Path, Path]]] | None:
+    """Reuse a split already encoded in the dataset paths, if one is present.
+
+    Args:
+        pairs: ``(image, label)`` pairs collected from the raw dataset.
+
+    Returns:
+        A ``{split: pairs}`` mapping when every pair sits under a recognizable
+        train/val/test directory, otherwise ``None`` (caller falls back to a
+        random split).
+    """
+    groups: dict[str, list[tuple[Path, Path]]] = {name: [] for name in SPLITS}
+    for image, label in pairs:
+        segments = [SPLIT_ALIASES[p.lower()] for p in image.parts if p.lower() in SPLIT_ALIASES]
+        if not segments:
+            return None
+        groups[segments[-1]].append((image, label))
+    if not groups["train"]:
+        return None
+    return groups
 
 
 def _split_pairs(
@@ -112,7 +146,12 @@ def prepare(
     if not pairs:
         raise RuntimeError(f"No image/label pairs found under {raw_path}.")
 
-    splits = _split_pairs(pairs)
+    splits = _existing_split(pairs)
+    if splits is not None:
+        logger.info("Reusing the split already present in the raw dataset.")
+    else:
+        logger.info("No split found; generating a deterministic %s split.", "60/20/20")
+        splits = _split_pairs(pairs)
     for name, split_pairs in splits.items():
         _copy_split(name, split_pairs, yolo_path)
         logger.info("Split %-5s -> %d samples", name, len(split_pairs))
