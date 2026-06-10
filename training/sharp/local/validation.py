@@ -46,9 +46,18 @@ def _label_for_image(image: Path) -> Path:
 
 
 def _check_image(path: Path) -> bool:
+    """Return True if the image is a valid, fully decodable file.
+
+    ``verify()`` only checks the header/container, so it is followed by a fresh
+    ``load()`` that actually decodes the pixels and therefore catches the most
+    common real-world corruption: truncated/partial files.
+    """
     try:
         with Image.open(path) as img:
             img.verify()
+        # verify() leaves the file in an unusable state; reopen to decode pixels.
+        with Image.open(path) as img:
+            img.load()
         return True
     except (UnidentifiedImageError, OSError):
         return False
@@ -77,6 +86,11 @@ def _check_label(path: Path, num_classes: int) -> list[str]:
             problems.append(f"{path}:{lineno} negative coordinate")
         if any(v > 1 for v in (cx, cy, w, h)):
             problems.append(f"{path}:{lineno} coordinate > 1 (not normalized)")
+        if w <= 0 or h <= 0:
+            problems.append(f"{path}:{lineno} zero-area box (w={w}, h={h})")
+        # Center + extent must keep the whole box inside the [0, 1] frame.
+        elif cx - w / 2 < 0 or cx + w / 2 > 1 or cy - h / 2 < 0 or cy + h / 2 > 1:
+            problems.append(f"{path}:{lineno} box extends outside the image")
     return problems
 
 
