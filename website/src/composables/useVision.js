@@ -1,8 +1,9 @@
 import { reactive, ref } from "vue";
 
 // Config API
-const DEFAULT_ENDPOINT = "";
-const CAPTURE_INTERVAL_MS = 300; // délai entre chaque capture (en ms) ->> Avec yolo26x le modèle est lourd
+// Default points at the local backend, proxied by nginx (see website/nginx.conf).
+const DEFAULT_ENDPOINT = "/predict";
+const CAPTURE_INTERVAL_MS = 300; // délai entre chaque capture (en ms)
 const API_ENDPOINT = import.meta.env.VITE_ENDPOINT || DEFAULT_ENDPOINT;
 const API_KEY = import.meta.env.VITE_API_KEY || "";
 
@@ -20,9 +21,11 @@ export const state = reactive({
   detections: [],
 });
 
-export const configReady = Boolean(API_ENDPOINT && API_KEY);
+// The API key is optional: the dockerized backend is reachable via the nginx
+// proxy without one. It is only sent when explicitly configured.
+export const configReady = Boolean(API_ENDPOINT);
 export const endpointLabel = API_ENDPOINT;
-export const apiKeyLabel = API_KEY ? "Récupérée avec succès" : "Manquante";
+export const apiKeyLabel = API_KEY ? "Configurée" : "Non requise (proxy local)";
 
 // Ref Vue caméra
 export const videoRef = ref(null);
@@ -119,8 +122,7 @@ async function sendFrame() {
   if (!video || !video.videoWidth || !video.videoHeight || state.loading)
     return;
   if (!configReady) {
-    state.error =
-      "Le fichier .env doit contenir VITE_ENDPOINT et VITE_API_KEY.";
+    state.error = "Aucun endpoint d'inférence configuré (VITE_ENDPOINT).";
     return;
   }
 
@@ -154,7 +156,7 @@ async function sendFrame() {
 
     const response = await fetch(API_ENDPOINT.trim(), {
       method: "POST",
-      headers: { "x-api-key": API_KEY.trim() },
+      headers: API_KEY ? { "x-api-key": API_KEY.trim() } : {},
       body: formData,
       signal: abortController.signal,
     });

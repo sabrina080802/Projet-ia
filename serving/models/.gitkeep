@@ -1,0 +1,2 @@
+# Place the trained weights here as best.pt (gitignored).
+# The backend mounts this directory read-only at /models.
