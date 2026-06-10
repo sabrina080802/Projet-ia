@@ -47,6 +47,8 @@ def train(data_yaml: str | Path, **overrides: Any) -> Path:
         "name": settings.train.name,
         "seed": settings.data.seed,
     }
+    # Deliberate augmentation strategy from settings.toml ([augment]).
+    params.update(dict(settings.augment))
     params.update(overrides)
 
     logger.info("Training %s with %s", model_name, params)

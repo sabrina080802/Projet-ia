@@ -38,6 +38,22 @@ device = ""              # "" -> auto-detect (cuda > mps > cpu).
 project = "runs"
 name = "sharp"
 
+[augment]
+# Data augmentation, tuned for hand/finger detection. Color jitter handles skin
+# tones and lighting; small geometric jitter handles tilt/position; fliplr is
+# safe because mirroring a hand does not change its finger count, whereas flipud
+# is disabled (upside-down hands are unrealistic for this task).
+hsv_h = 0.015
+hsv_s = 0.7
+hsv_v = 0.4
+degrees = 10.0
+translate = 0.1
+scale = 0.5
+fliplr = 0.5
+flipud = 0.0
+mosaic = 1.0
+mixup = 0.0
+
 [infer]
 conf = 0.25
 iou = 0.45
