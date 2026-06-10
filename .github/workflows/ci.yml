@@ -31,3 +31,9 @@ jobs:
 
       - name: Pytest
         run: pytest -q
+
+      - name: Ruff lint (serving backend)
+        run: ruff check --config pyproject.toml ../serving/backend
+
+      - name: Black format check (serving backend)
+        run: black --check --config pyproject.toml ../serving/backend
