@@ -47,6 +47,15 @@ training/data/
 training/.venv/
 training/*.egg-info/
 .pytest_cache/
+.ruff_cache/
+
+# Training scripts working dirs (NDJSON export -> dataset.zip)
+training/dataset/
+training/dataset.zip
+training/*.ndjson
+
+# Serving model weights (mounted into the backend container; covered by *.pt too)
+serving/models/*.pt
 
 # Claude local instructions
 CLAUDE.local.md
