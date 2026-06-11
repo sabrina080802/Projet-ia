@@ -1,12 +1,12 @@
 [project]
 name = "sharp-training"
 version = "0.1.0"
-description = "SHARP training pipelines (local + Ultralytics HUB cloud) for finger detection."
+description = "SHARP training pipelines (local + Ultralytics Platform cloud) for finger detection."
 readme = "README.md"
 requires-python = "==3.12.*"
 dependencies = [
-    "ultralytics>=8.3.0",
-    "hub-sdk>=0.0.12",
+    # >=8.4.60 is required for Ultralytics Platform integration (ul:// URIs).
+    "ultralytics>=8.4.60",
     "dynaconf>=3.2.0",
     "pyyaml>=6.0",
     "pillow>=10.0",

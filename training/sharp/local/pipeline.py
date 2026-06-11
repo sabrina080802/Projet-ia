@@ -25,11 +25,12 @@ class PipelineResult:
     metrics: dict[str, float]
 
 
-def run(dataset_id: str | None = None, strict: bool = True) -> PipelineResult:
+def run(dataset: str | None = None, strict: bool = True) -> PipelineResult:
     """Execute the full local training pipeline.
 
     Args:
-        dataset_id: Optional HUB dataset id override for the extraction stage.
+        dataset: Optional Platform dataset slug, ul:// URI or local dir override
+            for the extraction stage.
         strict: When True, abort if validation finds any problem.
 
     Returns:
@@ -39,7 +40,7 @@ def run(dataset_id: str | None = None, strict: bool = True) -> PipelineResult:
         RuntimeError: If ``strict`` is True and validation fails.
     """
     logger.info("== Stage 1/5: extraction ==")
-    raw_dir = extraction.extract(dataset_id=dataset_id)
+    raw_dir = extraction.extract(dataset=dataset)
 
     logger.info("== Stage 2/5: validation ==")
     report = validation.validate(raw_dir)
