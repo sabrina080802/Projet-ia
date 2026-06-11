@@ -37,6 +37,11 @@ jobs:
       - name: Build
         env:
           VITE_BASE: /Projet-ia/
+          # Forward the inference endpoint and (optional) key into the build so
+          # Vite inlines them. Without this the SPA falls back to "/predict",
+          # which has no nginx proxy on GitHub Pages.
+          VITE_ENDPOINT: ${{ vars.VITE_ENDPOINT }}
+          VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
         run: npm run build
 
       - name: Include the presentation page (if present)
