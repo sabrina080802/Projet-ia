@@ -1,8 +1,9 @@
-"""Cloud stage - hosted inference.
+"""Cloud stage - hosted inference on the Ultralytics Platform.
 
-Thin client over the Ultralytics hosted inference API. Sends an image to the
-deployed model and normalizes the response into detections plus the summed
-finger count, mirroring what the web dashboard displays.
+Thin client over the Platform's hosted-prediction endpoint
+(``POST /api/models/{modelId}/predict``). Sends an image to the trained model and
+normalizes the response into detections plus the summed finger count, mirroring
+what the web dashboard displays.
 """
 
 from __future__ import annotations
@@ -11,9 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import requests
-
 from config import settings
+from sharp import platform
 from sharp.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -54,49 +54,67 @@ def predict(image_path: str | Path) -> InferenceResult:
         An :class:`InferenceResult` with detections and the total finger count.
 
     Raises:
-        RuntimeError: If the API key or endpoint is missing.
-        requests.HTTPError: If the API returns a non-2xx status.
+        RuntimeError: If the API key or model id is missing, or the API errors.
     """
-    api_key = settings.ultralytics.api_key
-    if not api_key or api_key == "YOUR_ULTRALYTICS_API_KEY":
-        raise RuntimeError("Missing Ultralytics API key for hosted inference.")
+    model_id = settings.ultralytics.model_id
+    if not model_id:
+        raise RuntimeError(
+            "Hosted inference needs ultralytics.model_id. Run `cloud setup`, train "
+            "the model, then set ultralytics.model_id (or pass --model-id)."
+        )
 
-    endpoint = settings.ultralytics.inference_endpoint
+    client = platform.platform_client()
     data = {
-        "model": settings.ultralytics.inference_model_url,
         "imgsz": settings.infer.imgsz,
         "conf": settings.infer.conf,
         "iou": settings.infer.iou,
     }
-    logger.info("POST %s (model=%s)", endpoint, data["model"])
+    logger.info("POST models/%s/predict", model_id)
     with open(image_path, "rb") as handle:
-        response = requests.post(
-            endpoint,
-            headers={"x-api-key": api_key},
+        response = client.session.post(
+            client.url(f"models/{model_id}/predict"),
             data=data,
             files={"file": handle},
             timeout=30,
         )
-    response.raise_for_status()
-    payload = response.json()
-    return _normalize(payload)
+    if response.status_code >= 400:
+        raise RuntimeError(
+            f"Platform predict failed ({response.status_code}): {response.text[:500]}"
+        )
+    return _normalize(response.json())
+
+
+def _iter_raw_detections(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Pull the per-detection dicts out of a hosted-inference payload.
+
+    Tolerates the documented HUB-style ``{"images": [{"results": [...]}]}`` shape
+    as well as a flat ``{"predictions"|"results"|"boxes": [...]}`` envelope.
+    """
+    if isinstance(payload.get("images"), list):
+        detections: list[dict[str, Any]] = []
+        for image in payload["images"]:
+            detections.extend(image.get("results", []) or [])
+        return detections
+    for key in ("predictions", "results", "detections", "boxes"):
+        if isinstance(payload.get(key), list):
+            return payload[key]
+    return []
 
 
 def _normalize(payload: dict[str, Any]) -> InferenceResult:
     """Convert a raw hosted-inference payload into an :class:`InferenceResult`."""
     detections: list[Detection] = []
-    for image in payload.get("images", []):
-        for result in image.get("results", []):
-            label = str(result.get("name") or result.get("class") or result.get("label", ""))
-            fingers = _fingers_from_label(label)
-            detections.append(
-                Detection(
-                    label=label,
-                    confidence=float(result.get("confidence", result.get("score", 0.0))),
-                    fingers=fingers,
-                    box=result.get("box", {}),
-                )
+    for result in _iter_raw_detections(payload):
+        label = str(result.get("name") or result.get("class") or result.get("label", ""))
+        fingers = _fingers_from_label(label)
+        detections.append(
+            Detection(
+                label=label,
+                confidence=float(result.get("confidence", result.get("score", 0.0))),
+                fingers=fingers,
+                box=result.get("box", {}),
             )
+        )
     total = sum(det.fingers for det in detections)
     logger.info("Detections: %d, total fingers: %d", len(detections), total)
     return InferenceResult(detections=detections, total_fingers=total, raw=payload)

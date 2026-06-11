@@ -1,74 +1,72 @@
 """Stage 1 - Extraction.
 
-Download the annotated dataset from Ultralytics HUB using the official
-``hub_sdk`` and unpack it into the raw data directory. The dataset id is
-configurable via ``settings.toml`` or the ``--dataset-id`` CLI argument.
+Resolve the source dataset from the Ultralytics Platform and materialise it in
+the raw data directory so the downstream stages (validation, preparation) can
+work on local files. The dataset is referenced by its ``ul://`` URI; Ultralytics
+downloads and caches it on first use, and we copy the resolved YOLO tree
+(``images/`` + ``labels/``) into ``raw_dir`` so the run stays self-contained.
+
+A local directory path is also accepted and used as-is, which is handy when the
+dataset has already been pulled or is being iterated on offline.
 """
 
 from __future__ import annotations
 
 import shutil
-import urllib.request
-import zipfile
 from pathlib import Path
 
-from hub_sdk import HUBClient
-
 from config import settings
+from sharp import platform
 from sharp.logging_utils import get_logger
 
 logger = get_logger(__name__)
 
 
-def _client() -> HUBClient:
-    """Build an authenticated HUB client from the configured API key."""
-    api_key = settings.ultralytics.api_key
-    if not api_key or api_key == "YOUR_ULTRALYTICS_API_KEY":
-        raise RuntimeError(
-            "Missing Ultralytics API key. Copy .secrets.toml.example to .secrets.toml "
-            "and set ultralytics.api_key (or export SHARP_ULTRALYTICS__API_KEY)."
-        )
-    return HUBClient({"api_key": api_key})
+def _resolve_platform_dataset(uri: str) -> Path:
+    """Download/cache a ``ul://`` dataset via ultralytics and return its root."""
+    from ultralytics.data.utils import check_det_dataset
+
+    platform.configure_ultralytics_auth()
+    logger.info("Resolving Platform dataset %s", uri)
+    info = check_det_dataset(uri)
+    root = info.get("path")
+    if not root:
+        raise RuntimeError(f"Ultralytics returned no local path for dataset {uri}: {info}")
+    return Path(root)
 
 
-def extract(dataset_id: str | None = None, raw_dir: str | Path | None = None) -> Path:
-    """Download and unzip the HUB dataset into ``raw_dir``.
+def extract(dataset: str | None = None, raw_dir: str | Path | None = None) -> Path:
+    """Materialise the source dataset into ``raw_dir``.
 
     Args:
-        dataset_id: HUB dataset id; defaults to ``settings.ultralytics.dataset_id``.
+        dataset: A dataset slug, a full ``ul://`` URI, or a local dataset
+            directory. Defaults to ``settings.ultralytics.dataset`` (built into
+            ``ul://<username>/datasets/<dataset>``).
         raw_dir: Destination directory; defaults to ``settings.data.raw_dir``.
 
     Returns:
-        Path to the directory holding the extracted images and annotations.
+        Path to the directory holding the extracted images and labels.
 
     Raises:
-        RuntimeError: If the API key or dataset id is missing, or the download fails.
+        RuntimeError: If the dataset cannot be resolved.
     """
-    dataset_id = dataset_id or settings.ultralytics.dataset_id
-    if not dataset_id or dataset_id == "YOUR_DATASET_ID":
-        raise RuntimeError(
-            "No dataset id configured. Set ultralytics.dataset_id in settings.toml "
-            "or pass --dataset-id."
-        )
-
     raw_path = Path(raw_dir or settings.data.raw_dir)
-    raw_path.mkdir(parents=True, exist_ok=True)
 
-    logger.info("Requesting download link for HUB dataset %s", dataset_id)
-    dataset = _client().dataset(dataset_id)
-    download_url = dataset.get_download_link()
-    if not download_url:
-        raise RuntimeError(f"HUB returned no download link for dataset {dataset_id}.")
+    # A local directory is used in place; otherwise resolve the ul:// dataset.
+    if dataset and Path(dataset).is_dir():
+        source = Path(dataset)
+        logger.info("Using local dataset directory %s", source)
+    else:
+        source = _resolve_platform_dataset(platform.dataset_uri(dataset))
 
-    archive_path = raw_path / "dataset.zip"
-    logger.info("Downloading dataset archive to %s", archive_path)
-    urllib.request.urlretrieve(download_url, archive_path)  # noqa: S310 (trusted HUB URL)
+    if source.resolve() == raw_path.resolve():
+        logger.info("Dataset already at %s; nothing to copy.", raw_path)
+        return raw_path
 
-    logger.info("Unzipping archive into %s", raw_path)
-    with zipfile.ZipFile(archive_path) as archive:
-        archive.extractall(raw_path)
-    archive_path.unlink(missing_ok=True)
-
+    if raw_path.exists():
+        shutil.rmtree(raw_path)
+    logger.info("Copying dataset %s -> %s", source, raw_path)
+    shutil.copytree(source, raw_path)
     logger.info("Extraction complete: %s", raw_path)
     return raw_path
 

@@ -9,10 +9,13 @@ without any change.
 Configuration is read from environment variables (see :class:`Settings`):
 
 * ``SHARP_MODEL_PATH`` - local path to the weights (default ``/models/best.pt``).
-* ``SHARP_MODEL_URL``  - Ultralytics HUB model URL to download if the local file
-  is absent (requires ``SHARP_API_KEY``).
+* ``SHARP_MODEL_URL``  - Ultralytics Platform model URI to download if the local
+  file is absent (requires ``SHARP_API_KEY``). Use the ``ul://username/project/model``
+  scheme; legacy ``https://hub.ultralytics.com/models/<id>`` URLs still work until
+  HUB is wound down (end of July 2026).
 * ``SHARP_API_KEY``    - optional. When set, it is required as the ``x-api-key``
-  header on ``/predict`` and is used to authenticate the HUB download.
+  header on ``/predict`` and is used to authenticate the Platform download
+  (a ``ul_``-prefixed Platform API key).
 * ``SHARP_CONF`` / ``SHARP_IOU`` / ``SHARP_IMGSZ`` - inference hyper-parameters.
 """
 
@@ -46,28 +49,44 @@ class Settings:
 settings = Settings()
 
 
+def _authenticate(api_key: str) -> None:
+    """Register the Ultralytics Platform API key for ``ul://`` model downloads.
+
+    Sets both the documented ``ULTRALYTICS_API_KEY`` environment variable and the
+    persisted ``api_key`` setting (the programmatic equivalent of
+    ``yolo settings api_key=...``), so authentication works headlessly in Docker
+    regardless of which mechanism the installed ``ultralytics`` build reads.
+
+    Args:
+        api_key: A ``ul_``-prefixed Platform API key.
+    """
+    os.environ.setdefault("ULTRALYTICS_API_KEY", api_key)
+    from ultralytics import settings as ul_settings
+
+    ul_settings.update({"api_key": api_key})
+
+
 def load_model() -> YOLO:
-    """Load the YOLO model from the local path, falling back to an HUB download.
+    """Load the YOLO model from the local path, falling back to a Platform download.
 
     Returns:
         A ready-to-use :class:`~ultralytics.YOLO` model.
 
     Raises:
-        RuntimeError: If no local weights exist and no HUB URL is configured.
+        RuntimeError: If no local weights exist and no model URI is configured.
     """
     if Path(settings.model_path).exists():
         return YOLO(settings.model_path)
 
     if settings.model_url:
         if settings.api_key:
-            from ultralytics import hub
-
-            hub.login(settings.api_key)
+            _authenticate(settings.api_key)
         return YOLO(settings.model_url)
 
     raise RuntimeError(
         f"No model found at {settings.model_path!r} and SHARP_MODEL_URL is unset. "
-        "Place best.pt in the mounted models directory or set SHARP_MODEL_URL."
+        "Place best.pt in the mounted models directory or set SHARP_MODEL_URL "
+        "to a ul://username/project/model URI."
     )
 
 

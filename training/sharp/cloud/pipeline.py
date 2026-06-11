@@ -1,18 +1,21 @@
 """Orchestrator for the cloud pipeline.
 
-Prepares a local YOLO dataset, uploads it to Ultralytics HUB, and registers a
-HUB model with the training config. Cloud GPU training itself is launched from
-the HUB UI (or via ``train.train_programmatic``); afterwards
-``cloud.evaluation`` retrieves metrics and downloads the best weights.
+The dataset already lives on the Ultralytics Platform and is referenced by its
+``ul://`` URI, so there is nothing to upload. ``setup`` only provisions the
+Platform project + model that a cloud-GPU run needs; afterwards launch training
+with ``cloud train`` (local + streaming) or ``cloud train --cloud-gpu`` (REST),
+then ``cloud.evaluation`` pulls metrics and downloads the best weights.
+
+Plain ``cloud train`` (local streaming) creates the project/model on the fly, so
+it does not require ``setup`` first — ``setup`` is for the REST cloud-GPU path.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sharp.cloud import dataset as cloud_dataset
+from sharp import platform
 from sharp.cloud import train as cloud_train
-from sharp.local import extraction, preparation, validation
 from sharp.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -20,41 +23,39 @@ logger = get_logger(__name__)
 
 @dataclass
 class CloudSetupResult:
-    """Identifiers produced while setting up cloud training."""
+    """Identifiers/URIs produced while provisioning cloud training."""
 
-    dataset_id: str
+    dataset_uri: str
+    project_id: str
     model_id: str
-    model_url: str
+    model_uri: str
 
 
-def setup(dataset_id: str | None = None, reuse_remote: bool = False) -> CloudSetupResult:
-    """Prepare and register everything needed for HUB cloud training.
-
-    Args:
-        dataset_id: Existing HUB dataset id to reuse as the source. When None and
-            ``reuse_remote`` is False, the dataset is extracted, prepared locally
-            and re-uploaded as a clean YOLO archive.
-        reuse_remote: When True, skip local prep/upload and train directly off the
-            ``dataset_id`` already on HUB.
+def setup() -> CloudSetupResult:
+    """Provision the Platform project + model for the configured ``ul://`` dataset.
 
     Returns:
-        A :class:`CloudSetupResult` with the dataset and model identifiers.
+        A :class:`CloudSetupResult` with the dataset URI, the REST project/model
+        ids (needed by ``train_cloud``) and the model ``ul://`` URI.
     """
-    if reuse_remote:
-        if not dataset_id:
-            raise RuntimeError("reuse_remote=True requires a dataset_id.")
-        hub_dataset_id = dataset_id
-    else:
-        logger.info("Preparing local YOLO dataset for upload")
-        raw_dir = extraction.extract(dataset_id=dataset_id)
-        report = validation.validate(raw_dir)
-        if not report.ok:
-            logger.warning("Validation issues found; uploading anyway.")
-        preparation.prepare(raw_dir=raw_dir)
-        archive = cloud_dataset.zip_dataset()
-        hub_dataset_id = cloud_dataset.upload(archive)
+    dataset_uri = platform.dataset_uri()
+    logger.info("Cloud training will read dataset %s", dataset_uri)
 
-    model_id = cloud_train.create_model(dataset_id=hub_dataset_id)
-    model_url = f"https://hub.ultralytics.com/models/{model_id}"
-    logger.info("Cloud setup complete. Launch training at %s", model_url)
-    return CloudSetupResult(dataset_id=hub_dataset_id, model_id=model_id, model_url=model_url)
+    project_id = cloud_train.ensure_project()
+    model_id = cloud_train.create_model(project_id=project_id)
+    model_uri = platform.model_uri()
+
+    logger.info(
+        "Cloud setup complete. project_id=%s model_id=%s model=%s", project_id, model_id, model_uri
+    )
+    logger.info(
+        "Next: `cloud train` (local + stream) or `cloud train --cloud-gpu` (REST GPU). "
+        "Save model_id=%s in settings.toml to reuse it.",
+        model_id,
+    )
+    return CloudSetupResult(
+        dataset_uri=dataset_uri,
+        project_id=project_id,
+        model_id=model_id,
+        model_uri=model_uri,
+    )

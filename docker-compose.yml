@@ -2,7 +2,8 @@
 #
 # Usage:
 #   1. Put the trained weights at ./serving/models/best.pt
-#      (or set SHARP_MODEL_URL to download from Ultralytics HUB).
+#      (or set SHARP_MODEL_URL to a ul://username/project/model URI plus
+#       SHARP_API_KEY to download from Ultralytics Platform on startup).
 #   2. docker compose up --build
 #   3. Open http://localhost:8080
 services:
