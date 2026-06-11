@@ -3,9 +3,15 @@ import { reactive, ref } from "vue";
 // Config API
 // Default points at the local backend, proxied by nginx (see website/nginx.conf).
 const DEFAULT_ENDPOINT = "/predict";
-// Délai entre une réponse et la capture suivante. 0 = aussi vite que le backend
-// le permet (le débit réel est borné par la latence d'inférence, pas par ce délai).
+// Cadence du planificateur de capture. 0 = on réessaie aussi vite que possible
+// (le débit réel est borné par le pipeline ci-dessous, pas par ce délai).
 const CAPTURE_INTERVAL_MS = 0;
+// Largeur max de l'image envoyée. Plus petit = encodage + upload + inférence
+// plus rapides (priorité vitesse).
+const SEND_WIDTH = 416;
+// Profondeur du pipeline : nombre de requêtes en vol simultanées. >1 permet de
+// recouvrir la latence réseau d'une frame avec l'inférence de la précédente.
+const MAX_IN_FLIGHT = 2;
 const API_ENDPOINT = import.meta.env.VITE_ENDPOINT || DEFAULT_ENDPOINT;
 const API_KEY = import.meta.env.VITE_API_KEY || "";
 
@@ -37,7 +43,8 @@ const captureCanvas = document.createElement("canvas");
 
 let mediaStream = null;
 let captureTimer = null;
-let abortController = null;
+// Requêtes /predict en cours (pour pouvoir toutes les annuler à l'arrêt).
+const inFlightControllers = new Set();
 let loopActive = false;
 let lastFrameTime = 0;
 
@@ -124,29 +131,32 @@ export function redrawOverlay() {
 
 async function sendFrame() {
   const video = videoRef.value;
-  if (!video || !video.videoWidth || !video.videoHeight || state.loading)
-    return;
+  if (!video || !video.videoWidth || !video.videoHeight) return;
   if (!configReady) {
     state.error = "Aucun endpoint d'inférence configuré (VITE_ENDPOINT).";
     return;
   }
 
-  state.loading = true;
   state.error = "";
-  if (abortController) abortController.abort();
-  abortController = new AbortController();
+  const controller = new AbortController();
+  inFlightControllers.add(controller);
+  state.loading = true;
 
   try {
-    const scale = Math.min(1, 640 / video.videoWidth);
+    const scale = Math.min(1, SEND_WIDTH / video.videoWidth);
 
     const baseWidth = video.videoWidth * scale;
     const baseHeight = video.videoHeight * scale;
 
-    captureCanvas.width = Math.round(baseWidth / 32) * 32;
-    captureCanvas.height = Math.round(baseHeight / 32) * 32;
+    // L'image envoyée est figée dans des variables locales : plusieurs frames
+    // peuvent être en vol en parallèle sans se marcher dessus sur le canvas.
+    const sentWidth = Math.round(baseWidth / 32) * 32;
+    const sentHeight = Math.round(baseHeight / 32) * 32;
+    captureCanvas.width = sentWidth;
+    captureCanvas.height = sentHeight;
 
     const context = captureCanvas.getContext("2d");
-    context.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+    context.drawImage(video, 0, 0, sentWidth, sentHeight);
 
     const blob = await new Promise((res, rej) =>
       captureCanvas.toBlob(
@@ -163,7 +173,7 @@ async function sendFrame() {
       method: "POST",
       headers: API_KEY ? { "x-api-key": API_KEY.trim() } : {},
       body: formData,
-      signal: abortController.signal,
+      signal: controller.signal,
     });
 
     const rawText = await response.text();
@@ -198,14 +208,18 @@ async function sendFrame() {
       state.status = "Échec de l'analyse.";
     }
   } finally {
-    state.loading = false;
+    inFlightControllers.delete(controller);
+    state.loading = inFlightControllers.size > 0;
   }
 }
 
-async function captureLoop() {
+function captureLoop() {
   if (!loopActive) return;
-  await sendFrame();
-  if (loopActive) captureTimer = setTimeout(captureLoop, CAPTURE_INTERVAL_MS);
+  // Tant qu'on n'a pas atteint la profondeur de pipeline, on lance une frame
+  // sans l'attendre : la suivante se prépare pendant que celle-ci est en vol.
+  if (inFlightControllers.size < MAX_IN_FLIGHT) sendFrame();
+  const gated = inFlightControllers.size >= MAX_IN_FLIGHT;
+  captureTimer = setTimeout(captureLoop, gated ? 5 : CAPTURE_INTERVAL_MS);
 }
 
 export function startLoop() {
@@ -221,9 +235,10 @@ export function stopLoop() {
   state.streamOn = false;
   loopActive = false;
   if (captureTimer) clearTimeout(captureTimer);
-  if (abortController) abortController.abort();
+  for (const controller of inFlightControllers) controller.abort();
+  inFlightControllers.clear();
   captureTimer = null;
-  abortController = null;
+  state.loading = false;
   state.fps = 0;
 }
 

@@ -15,11 +15,22 @@ services:
       SHARP_API_KEY: ${SHARP_API_KEY:-}
       SHARP_CONF: ${SHARP_CONF:-0.25}
       SHARP_IOU: ${SHARP_IOU:-0.45}
-      SHARP_IMGSZ: ${SHARP_IMGSZ:-640}
+      # Plus petit = inférence plus rapide (priorité vitesse). Repasser à 640
+      # via SHARP_IMGSZ=640 si la détection des petits objets/de loin se dégrade.
+      SHARP_IMGSZ: ${SHARP_IMGSZ:-416}
     volumes:
       - ./serving/models:/models:ro
     ports:
       - "8000:8000"
+    # Expose le GPU NVIDIA de l'hôte au conteneur. Nécessite le NVIDIA Container
+    # Toolkit installé côté hôte (sinon `docker compose up` échoue ici).
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
   frontend:
     build:
