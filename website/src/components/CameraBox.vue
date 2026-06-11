@@ -17,9 +17,6 @@ import {
       <div class="flex items-center justify-between shrink-0">
         <div>
           <h2 class="card-title text-xl">Caméra</h2>
-          <p class="text-xs text-base-content/60">
-            Analyse en temps réel à 3 FPS.
-          </p>
         </div>
         <div class="flex gap-2">
           <button
