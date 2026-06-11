@@ -27,6 +27,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
 
+import anyio
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, UnidentifiedImageError
@@ -93,7 +94,15 @@ def load_model() -> YOLO:
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: ANN201 - FastAPI lifespan signature
     """Load the model before the API starts serving requests."""
-    app.state.model = load_model()
+    model = load_model()
+    app.state.model = model
+    # Surface which device the model landed on so a missing GPU passthrough is
+    # obvious in the logs (CPU inference is what caps throughput at a few FPS).
+    device = getattr(model, "device", "unknown")
+    print(f"[SHARP] Model loaded on device: {device}", flush=True)
+    # Warm up so the first real request doesn't pay CUDA/graph init latency.
+    warmup = Image.new("RGB", (settings.imgsz, settings.imgsz))
+    model.predict(warmup, imgsz=settings.imgsz, verbose=False)
     yield
 
 
@@ -177,11 +186,15 @@ async def predict(
     except (UnidentifiedImageError, OSError) as exc:
         raise HTTPException(status_code=400, detail="Unreadable image.") from exc
 
-    results = app.state.model.predict(
-        image,
-        conf=settings.conf,
-        iou=settings.iou,
-        imgsz=settings.imgsz,
-        verbose=False,
+    # Run the blocking inference in a worker thread so the event loop stays free
+    # to receive the next frame's upload while the GPU is busy on this one.
+    results = await anyio.to_thread.run_sync(
+        lambda: app.state.model.predict(
+            image,
+            conf=settings.conf,
+            iou=settings.iou,
+            imgsz=settings.imgsz,
+            verbose=False,
+        )
     )
     return _to_hub_payload(results)
