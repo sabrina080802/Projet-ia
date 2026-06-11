@@ -169,21 +169,22 @@
         <div class="card">
           <h3>Couleurs (HSV)</h3>
           <ul>
-            <li><span class="kbd">hsv_h = 0.015</span></li>
-            <li><span class="kbd">s = 0.7</span>, <span class="kbd">v = 0.4</span></li>
+            <li><span class="kbd">hsv_h = 0.05</span></li>
+            <li><span class="kbd">s = 0.7</span>, <span class="kbd">v = 0.6</span></li>
           </ul>
           <p class="small muted">Gère les teints de peau et éclairages.</p>
         </div>
         <div class="card">
           <h3>Géométrie forte</h3>
           <ul>
-            <li><span class="kbd">degrees = 45</span></li>
-            <li><span class="kbd">shear = 2</span>, <span class="kbd">persp = 0.0005</span></li>
-            <li><span class="kbd">fliplr = 0.5</span>, <span class="kbd">flipud = 0.5</span></li>
+            <li><span class="kbd">degrees = 45</span> · <strong>rotation — levier clé</strong></li>
+            <li><span class="kbd">shear = 2</span>, <span class="kbd">perspective = 0.001</span></li>
+            <li><span class="kbd">fliplr = 0.8</span>, <span class="kbd">flipud = 0.8</span></li>
           </ul>
+          <p class="small muted">→ mains <strong>inclinées / tournées</strong> enfin détectées.</p>
         </div>
       </div>
-      <p class="small" style="margin-top:0.6em;"><strong>Choix assumé :</strong> L'activation du miroir vertical (<span class="kbd">flipud</span>) et de la forte rotation (45°) force le modèle à généraliser la structure de la main, peu importe l'angle de la webcam.</p>
+      <p class="small" style="margin-top:0.6em;">Monter fortement la rotation (<span class="kbd">degrees = 45</span>) a été <em>déterminant</em> — sans elle, le modèle ratait les <strong>mains tournées</strong>. Couplée au miroir vertical (<span class="kbd">flipud</span>), elle force le modèle à généraliser la structure de la main <strong>peu importe l'angle de la webcam</strong>.</p>
     </section>
 
     <section>
@@ -192,35 +193,35 @@
         <div class="card">
           <h3>Configuration finale</h3>
           <ul>
-            <li>Modèle : <strong>YOLO26s</strong> (small)</li>
-            <li>Image size : <span class="kbd">640</span></li>
-            <li>Batch : <strong>-1</strong> (auto)</li>
+            <li>Modèle : <strong>YOLO26m</strong> (medium)</li>
+            <li>Image size : <span class="kbd">640</span> · batch <span class="kbd">-1</span> (auto)</li>
+            <li>Époques : <strong>200</strong> · patience <strong>50</strong></li>
           </ul>
         </div>
         <div class="card">
-          <h3>Hyper-paramètres</h3>
+          <h3>Environnement (Ultralytics HUB)</h3>
           <ul>
-            <li>Époques : <strong>250</strong></li>
-            <li>Patience : <strong>50</strong></li>
-            <li>Métriques sous <span class="kbd">runs/</span></li>
+            <li>GPU <strong>H200 SXM</strong> · entraînement en <strong>2 min</strong></li>
+            <li>Coût compute : <strong>~0,20 $</strong></li>
+            <li>Ultralytics <span class="kbd">8.4.65</span> · Docker</li>
           </ul>
         </div>
       </div>
-      <p class="small" style="margin-top:0.6em;">Cible <strong>≥ 10 FPS</strong> en live → modèle très léger (<span class="kbd">s</span>) privilégié.<br>Allongement net des <strong>époques (250)</strong> pour bien assimiler la forte augmentation.</p>
+      <p class="small" style="margin-top:0.6em;">Modèle <strong>medium</strong> retenu pour l'accuracy ; l'inférence <strong>GPU</strong> tient la cible <strong>≥ 10 FPS</strong> en live.<br>Scheduler cosinus (<span class="kbd">cos_lr</span>) + <span class="kbd">close_mosaic = 10</span> pour stabiliser la fin d'entraînement sous forte augmentation.</p>
     </section>
 
     <section>
       <h2>Résultats &amp; métriques</h2>
       <div class="grid3">
-        <div class="card stat"><div class="num">88,7%</div><div class="lbl">mAP@50</div></div>
-        <div class="card stat"><div class="num">76,2%</div><div class="lbl">mAP@50-95</div></div>
+        <div class="card stat"><div class="num">97,5%</div><div class="lbl">mAP@50</div></div>
+        <div class="card stat"><div class="num">82,4%</div><div class="lbl">mAP@50-95</div></div>
         <div class="card stat"><div class="num">>10</div><div class="lbl">FPS Live</div></div>
       </div>
       <div class="grid2" style="margin-top: 0.4em;">
-        <div class="card stat"><div class="num">85,8%</div><div class="lbl">Précision</div></div>
-        <div class="card stat"><div class="num">81,7%</div><div class="lbl">Rappel</div></div>
+        <div class="card stat"><div class="num">96,3%</div><div class="lbl">Précision</div></div>
+        <div class="card stat"><div class="num">96,7%</div><div class="lbl">Rappel</div></div>
       </div>
-      <p class="small muted" style="margin-top: 0.5em;">Évaluation sur le <strong>jeu de test</strong> via <span class="kbd">model.val()</span>. Confusion <strong>4 vs 5 doigts</strong>.</p>
+      <p class="small muted" style="margin-top: 0.5em;">Évaluation sur le <strong>jeu de test</strong> via <span class="kbd">model.val()</span>. Confusion résiduelle <strong>4 vs 5 doigts</strong>.</p>
     </section>
 
     <section>
@@ -265,14 +266,6 @@
             <li>Type hints (PEP 484)</li>
           </ul>
         </div>
-      </div>
-    </section>
-
-    <section data-background-gradient="linear-gradient(135deg, #0d1117 0%, #16302b 100%)">
-      <div style="text-align:center;">
-        <div class="demo-big">🖐️</div>
-        <h2>Démo Live</h2>
-        <p class="small">Test de robustesse : 1 main, 2 mains, changements rapides.</p>
       </div>
     </section>
 
